@@ -1,2 +1,2 @@
 # langs
-Repos to introduces top 5 languages
+comparative studies of the top five programming languages.
