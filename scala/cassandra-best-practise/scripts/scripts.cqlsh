@@ -1,0 +1,14 @@
+-- Create the 'cassandra_ref' keyspace
+CREATE KEYSPACE cassandra_ref WITH REPLICATION = {
+    'class': 'SimpleStrategy',
+    'replication_factor': 1
+};
+
+-- Create the 'movies' table in the 'cassandra_ref' keyspace
+CREATE TABLE cassandra_ref.movies (
+    isbn text PRIMARY KEY,
+    releasedate timestamp,
+    title text,
+    partner text,
+    reprint timestamp
+);
