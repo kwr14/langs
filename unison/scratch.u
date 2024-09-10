@@ -1,0 +1,10 @@
+helloWorld : '{IO, Exception} ()
+
+use Text ++
+
+helloWorld _ =
+
+    printLine ("Hello World! " ++ "Bye World")
+
+
+    throw "Hello World"

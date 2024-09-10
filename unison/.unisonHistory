@@ -1,0 +1,93 @@
+run myDiv myTerm
+add
+run helloWorld
+update
+run helloWorld Kidane ()
+run helloWorld
+update
+run helloWorld
+update
+run helloWorld Kidane
+run helloWorld() Kidane
+run helloWorld Kidane
+update
+run helloWorld
+helloWorld
+helloWorld(Kidane)
+helloWorld("Kidane")
+view helloWorld
+helloWorld
+./helloWorld Kidane
+run helloWorld Kidane
+update
+run helloWorld Jay
+run helloWorld
+update
+run helloWorld
+update
+run helloWorld
+update
+run helloWorld
+helloWorld
+run helloWorld Kidane
+update
+run helloWorld
+run helloWorld Kidane
+helloWorld Kidane
+add
+view Text.++
+view Text
+view Int
+view Abort
+ls
+run usingAbilitiesPt1.helloWorld
+nnnnnn
+run usingAbilitiesPt1.helloWorld Kidane
+run usingAbilitiesPt1.helloWorld
+projects
+exit
+ui
+open
+run helloWorld
+add
+run quickstart
+project.list
+./myTerm
+add myTerm
+myTerm
+run myTerm
+myTerm
+add
+exit
+ls
+2 |> myTerm
+myTerm
+add
+?
+myTerm
+ls
+myTerm
+exit
+load
+myTerm
+ls
+vim scratch.u
+add
+>
+,
+add
+add .
+?
+pwd
+2 + 9
+ls
+exit
+ll
+ls
+cd lib
+ls lib.base
+ls
+open scratch.u
+ls
+myTerm = List.map (x -> x * 10) [1,2,3,4,5,6]
+project.create quickstart

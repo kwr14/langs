@@ -1,0 +1,32 @@
+# Ignore build directories
+/build/
+/target/
+
+# Ignore IDE files
+.idea/
+/*.iml
+
+# Ignore dependency directories
+/.mvn/
+
+# Ignore all log files
+*.log
+
+# Ignore temporary files
+*.tmp
+
+.bsp/
+.metals/
+.scala-build/
+.vscode/
+
+scala/.DS_store
+scala/.bsp/
+scala/.scala-build/
+scala/.vscode/
+scala/.metals/
+
+
+python/.DS_Store
+python/.funcignore
+python/.gitignore
