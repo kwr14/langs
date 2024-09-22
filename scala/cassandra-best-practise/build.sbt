@@ -1,9 +1,12 @@
 import Dependencies._
 
-ThisBuild / scalaVersion := "3.5.0"
+// ThisBuild / scalaVersion := "3.5.0"
+ThisBuild / scalaVersion := "2.13.12"
 ThisBuild / version := "0.1.0-SNAPSHOT"
 ThisBuild / organization := "uk.sky"
 ThisBuild / organizationName := "sky"
+
+resolvers += "confluent" at "https://packages.confluent.io/maven/"
 
 lazy val root = (project in file("."))
   .settings(
@@ -17,6 +20,7 @@ lazy val root = (project in file("."))
       "co.fs2" %% "fs2-core" % "3.7.0",
       "co.fs2" %% "fs2-io" % "3.7.0",
       "org.scalatest" %% "scalatest" % "3.2.15" % Test,
-      munit % Test
+      munit % Test,
+      "com.banno" % "kafka4s_2.13" % "6.0.1"
     )
   )

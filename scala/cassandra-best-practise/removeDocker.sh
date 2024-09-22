@@ -1,0 +1,18 @@
+#!/bin/bash
+
+# Stop all running containers
+docker stop $(docker ps -q)
+
+# Remove all containers
+docker rm $(docker ps -a -q)
+
+# Remove all images
+docker rmi $(docker images -q)
+
+# Remove all volumes
+docker volume rm $(docker volume ls -q)
+
+# Remove all networks
+docker network rm $(docker network ls -q)
+
+echo "All Docker processes, containers, images, volumes, and networks have been removed."

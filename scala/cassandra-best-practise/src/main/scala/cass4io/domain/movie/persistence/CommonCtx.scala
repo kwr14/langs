@@ -1,6 +1,7 @@
 package cass4io.domain.movie.persistence
 import com.datastax.oss.driver.api.core.ConsistencyLevel
-import org.apache.http.protocol.ExecutionContext
+
+import scala.concurrent.{ExecutionContext, Future}
 
 case class CommonCtx(
     keyspace: String,

@@ -49,6 +49,8 @@ object CassApp extends App {
   cassService.safeInsert("movies", pulpNull)
   cassService.safeInsert("movies", pulp.copy(isbn = "2"))
 
+  // populate movies with random fields
+
   // Update example: Change the partner of the movie with isbn "1"
   val updatedPulp = pulp.copy(partner = Some("NowTV"))
   try {
@@ -58,7 +60,7 @@ object CassApp extends App {
       primaryKey = "1"
     )
   } catch {
-    case e =>
+    case e: Throwable =>
       println(s"plutus: ${e.getMessage()}")
   }
 
@@ -71,9 +73,40 @@ object CassApp extends App {
       primaryKey = "1"
     )
   } catch {
-    case e =>
+    case e: Throwable =>
       println(s"plutus: ${e.getMessage()}")
   }
+
+  def generateRandomMovie(id: Int): Movie = {
+    val random = new scala.util.Random()
+    Movie(
+      isbn = id.toString,
+      releasedate = Instant
+        .now()
+        .minusSeconds(random.nextInt(31536000)), // Random date within last year
+      title = s"Random Movie ${id}",
+      partner =
+        if (random.nextBoolean()) Some(s"Partner ${random.nextInt(100)}")
+        else None,
+      reprint =
+        if (random.nextBoolean())
+          Some(Instant.now().minusSeconds(random.nextInt(15768000)))
+        else None // Random date within last 6 months
+    )
+  }
+
+  def populateRandomMovies(count: Int): Unit = {
+    println(s"Populating $count random movies...")
+    (1 to count).foreach { id =>
+      val movie = generateRandomMovie(id)
+      cassService.safeInsert("movies", movie)
+      if (id % 10000 == 0) println(s"Inserted $id movies")
+    }
+    println("Finished populating random movies.")
+  }
+
+  // Populate 1 million random movies
+  populateRandomMovies(1000000)
 
   session.close()
 }

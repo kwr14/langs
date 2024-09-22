@@ -1,7 +1,6 @@
 package cass4io.domain.movie.model
 
 import java.time.Instant
-import scala.meta.Type
 import com.datastax.oss.driver.api.core.cql.Row
 import scala.util.Try
 
