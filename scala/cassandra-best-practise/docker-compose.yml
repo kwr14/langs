@@ -44,11 +44,11 @@ services:
       - zookeeper
       - broker
     ports:
-      - "8091:8081"
+      - "8091:8091"
     environment:
       SCHEMA_REGISTRY_HOST_NAME: schema-registry
       SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS: 'broker:29092'
-      SCHEMA_REGISTRY_LISTENERS: http://0.0.0.0:8081
+      SCHEMA_REGISTRY_LISTENERS: schema-registry:8091
 
   rest-proxy:
     image: confluentinc/cp-kafka-rest:7.7.0
