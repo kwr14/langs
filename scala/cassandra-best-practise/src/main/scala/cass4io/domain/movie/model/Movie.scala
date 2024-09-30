@@ -2,6 +2,9 @@ package cass4io.domain.movie.model
 
 import java.time.Instant
 import com.datastax.oss.driver.api.core.cql.Row
+import com.github.plokhotnyuk.jsoniter_scala.macros._
+import com.github.plokhotnyuk.jsoniter_scala.core._
+
 import scala.util.Try
 
 case class FieldInfo(name: String, typ: String, value: Any)
@@ -38,14 +41,44 @@ case class Movie(
   override def tableName: String = "movies"
 
 }
-
 object Movie {
-  def parse(row: Row): Movie =
-    Movie(
-      isbn = row.getString("isbn"),
-      releasedate = row.getInstant("releasedate"),
-      title = row.getString("title"),
-      partner = Try(row.getString("partner")).toOption,
-      reprint = Try(row.getInstant("reprint")).toOption
-    )
+
+  implicit val codec: JsonValueCodec[Movie] = JsonCodecMaker.make
+
+  def safeRead[T](value: T): Option[T] = {
+    if (value == null) None
+    else Some(value)
+  }
+
+  def parse(row: Row): Option[Movie] =
+    Try(
+      Movie(
+        isbn = row.getString("isbn"),
+        releasedate = row.getInstant("releasedate"),
+        title = row.getString("title"),
+        partner = safeRead(row.getString("partner")),
+        reprint = safeRead(row.getInstant("reprint"))
+      )
+    ).toOption
+}
+
+object MovieApp extends App {
+  import com.github.plokhotnyuk.jsoniter_scala.core._
+  import com.github.plokhotnyuk.jsoniter_scala.macros._
+
+  val movie = Movie(
+    isbn = "1234567890",
+    releasedate = Instant.now(),
+    title = "Test Movie",
+    partner = Some("Test Partner"),
+    reprint = Some(Instant.now())
+  )
+
+  // Serialize Movie to JSON
+  val json: String = writeToString(movie)
+  println(s"Serialized JSON: $json")
+
+  // Deserialize JSON to Movie
+  val deserializedMovie: Movie = readFromString[Movie](json)
+  println(s"Deserialized Movie: $deserializedMovie")
 }

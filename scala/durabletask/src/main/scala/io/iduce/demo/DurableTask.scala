@@ -16,7 +16,7 @@ trait DurableTask:
   def taskId: String
   def metadata: Map[String, String]
 
-class DurableTaskImpl(taskRepository: TaskRepository) extends DurableTask:
+class DurableTaskImpl(taskRepository: TaskRepository, taskId: String) extends DurableTask:
 
   override def run(): IO[TaskResult] =
     taskRepository.createTableIfNotExists().flatMap { _ =>
@@ -39,5 +39,5 @@ class DurableTaskImpl(taskRepository: TaskRepository) extends DurableTask:
       }
     }
 
-  override def taskId: String = "myTask"
+  override def taskId: String = taskId
   override def metadata: Map[String, String] = Map.empty

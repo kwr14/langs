@@ -13,7 +13,7 @@ object Main extends IOApp:
 
     for
       result <- new demo.DurableTaskImpl(
-        new demo.SQLiteTaskStateDatabaseService
+        new demo.SQLiteTaskStateDatabaseService, "taskId-1"
       )
         .run()
       _ <- demo.Logging.logInfo(s"Task result: ${result}")

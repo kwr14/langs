@@ -1,6 +1,6 @@
 package cass4io.domain.movie.persistence
 
-import cass4io.domain.movie.model.Movie // Adjust the import based on your actual Movie model location
+import cass4io.domain.movie.model.Movie
 import cats.effect.IO
 import com.datastax.oss.driver.api.core.CqlSession
 import com.datastax.oss.driver.api.querybuilder.QueryBuilder._
@@ -186,7 +186,7 @@ class MovieRepository(session: CqlSession) extends Repository[Movie] {
       session.executeAsync(statement)
 
     fromJavaAsync(resultSet).map { resultSet =>
-      resultSet.headOption.map(Movie.parse)
+      resultSet.headOption.map(r => Movie.parse(r).get)
     }
   }
 
