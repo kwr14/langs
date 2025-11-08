@@ -10,20 +10,31 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # ensure history available for diffs
 
       - name: Summarize changed files
         shell: bash
         run: |
-          BASE_SHA="${{ github.event.pull_request.base.sha }}"
-          HEAD_SHA="${{ github.sha }}"
-          if [ -n "$BASE_SHA" ]; then
-            echo "Comparing base $BASE_SHA to head $HEAD_SHA"
-            git fetch --no-tags --depth=2 origin "$BASE_SHA" || true
-            git diff --name-only "$BASE_SHA" "$HEAD_SHA" | sed 's/^/- /' || echo "No diff available"
+          set -euo pipefail
+          echo "Event: $GITHUB_EVENT_NAME"
+          if [[ "$GITHUB_EVENT_NAME" == "pull_request" ]]; then
+            BASE_REF="${{ github.event.pull_request.base.ref }}"
+            echo "Base ref: $BASE_REF"
+            # Fetch base branch ref and compare merge-base (triple-dot)
+            git fetch --no-tags origin "$BASE_REF":"refs/remotes/origin/$BASE_REF"
+            git diff --name-only "origin/$BASE_REF"...HEAD | sed 's/^/- /' || echo "No differences detected"
           else
-            echo "Changed files from previous commit:"
-            git diff --name-only HEAD^ HEAD | sed 's/^/- /' || echo "Initial commit or single commit; listing all tracked files"
-            git ls-files | sed 's/^/- /'
+            BEFORE="${{ github.event.before }}"
+            AFTER="${{ github.sha }}"
+            echo "Before: $BEFORE"
+            echo "After:  $AFTER"
+            if [[ "$BEFORE" == "0000000000000000000000000000000000000000" || -z "$BEFORE" ]]; then
+              echo "Initial commit; listing all tracked files"
+              git ls-files | sed 's/^/- /'
+            else
+              git diff --name-only "$BEFORE" "$AFTER" | sed 's/^/- /' || echo "No differences detected"
+            fi
           fi
 
       - name: List modules present
