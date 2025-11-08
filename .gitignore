@@ -30,3 +30,5 @@ scala/.metals/
 python/.DS_Store
 python/.funcignore
 python/.gitignore
+
+.history/
