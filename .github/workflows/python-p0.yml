@@ -20,19 +20,20 @@ jobs:
         with:
           python-version: '3.14-dev'
           allow-prereleases: true
-          cache: 'pip'
 
-      - name: Upgrade pip
-        run: python -m pip install --upgrade pip
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v2
 
-      - name: Install project dependencies (if any)
+      - name: Sync dependencies with uv
+        working-directory: python/p0
         run: |
-          if [ -f python/p0/requirements.txt ]; then
-            pip install -r python/p0/requirements.txt
-          elif [ -f python/p0/pyproject.toml ]; then
-            echo "No runtime dependencies declared in pyproject.toml"
+          uv --version
+          # Prefer lockfile if present; fall back to resolving
+          if [ -f uv.lock ]; then
+            uv sync --locked
           else
-            echo "No dependency files found"
+            uv sync
+          fi
 
-      - name: Run script
-        run: python python/p0/main.py
+      - name: Run script with uv
+        run: uv run python python/p0/main.py
