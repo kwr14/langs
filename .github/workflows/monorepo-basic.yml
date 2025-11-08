@@ -19,6 +19,8 @@ jobs:
         run: |
           # Be resilient to missing refs or shallow history
           set -u
+          # Avoid git safe.directory issues that can produce exit 128
+          git config --global --add safe.directory "$GITHUB_WORKSPACE" || true
           echo "Event: $GITHUB_EVENT_NAME"
           if [[ "$GITHUB_EVENT_NAME" == "pull_request" ]]; then
             BASE_REF="${{ github.event.pull_request.base.ref }}"
@@ -31,6 +33,9 @@ jobs:
               echo "Base ref not available; listing files changed in HEAD"
               git show --name-only --pretty="" HEAD | sed 's/^/- /' || true
             fi
+          elif [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then
+            echo "Manual run; diff context not available. Listing tracked files."
+            git ls-files | sed 's/^/- /' || true
           else
             BEFORE="${{ github.event.before }}"
             AFTER="${{ github.sha }}"
@@ -39,7 +44,7 @@ jobs:
             if [[ "$BEFORE" == "0000000000000000000000000000000000000000" || -z "$BEFORE" ]]; then
               echo "Initial commit; listing all tracked files"
               git ls-files | sed 's/^/- /' || true
-            elif git rev-parse --verify "$BEFORE" >/dev/null 2>&1; then
+            elif git rev-parse --verify "$BEFORE^{commit}" >/dev/null 2>&1 && git rev-parse --verify "$AFTER^{commit}" >/dev/null 2>&1; then
               git diff --name-only "$BEFORE" "$AFTER" | sed 's/^/- /' || true
             else
               echo "Previous SHA not present; listing files changed in HEAD"
