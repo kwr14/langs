@@ -35,5 +35,16 @@ jobs:
             uv sync
           fi
 
-      - name: Run script with uv
-        run: uv run python python/p0/main.py
+      - name: Run script with uv and summarize output
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Running python/p0/main.py with uv..."
+          uv run python python/p0/main.py | tee script_output.txt
+          {
+            echo "### Python p0 script output"
+            echo
+            echo '```text'
+            cat script_output.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
