@@ -1,0 +1,39 @@
+name: Monorepo Common CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  repo-overview:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Summarize changed files
+        shell: bash
+        run: |
+          BASE_SHA="${{ github.event.pull_request.base.sha }}"
+          HEAD_SHA="${{ github.sha }}"
+          if [ -n "$BASE_SHA" ]; then
+            echo "Comparing base $BASE_SHA to head $HEAD_SHA"
+            git fetch --no-tags --depth=2 origin "$BASE_SHA" || true
+            git diff --name-only "$BASE_SHA" "$HEAD_SHA" | sed 's/^/- /' || echo "No diff available"
+          else
+            echo "Changed files from previous commit:"
+            git diff --name-only HEAD^ HEAD | sed 's/^/- /' || echo "Initial commit or single commit; listing all tracked files"
+            git ls-files | sed 's/^/- /'
+          fi
+
+      - name: List modules present
+        run: |
+          echo "Modules detected:"
+          for m in gleam java llm-rag python rust scala unison zig; do
+            if [ -d "$m" ]; then
+              echo "- $m"
+            fi
+          done
+
+      - name: Disk usage by top-level dirs
+        run: du -h --max-depth=1 | sort -h

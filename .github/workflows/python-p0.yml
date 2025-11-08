@@ -1,0 +1,38 @@
+name: Python p0 CI
+
+on:
+  push:
+    paths:
+      - 'python/p0/**'
+  pull_request:
+    paths:
+      - 'python/p0/**'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.14-dev'
+          allow-prereleases: true
+          cache: 'pip'
+
+      - name: Upgrade pip
+        run: python -m pip install --upgrade pip
+
+      - name: Install project dependencies (if any)
+        run: |
+          if [ -f python/p0/requirements.txt ]; then
+            pip install -r python/p0/requirements.txt
+          elif [ -f python/p0/pyproject.toml ]; then
+            echo "No runtime dependencies declared in pyproject.toml"
+          else
+            echo "No dependency files found"
+
+      - name: Run script
+        run: python python/p0/main.py
