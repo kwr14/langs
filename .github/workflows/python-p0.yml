@@ -25,16 +25,31 @@ jobs:
       - name: Set up uv
         uses: astral-sh/setup-uv@v2
 
-      - name: Sync dependencies with uv
+      - name: Sync dependencies with uv (include dev)
         working-directory: python/p0
         run: |
           uv --version
           # Prefer lockfile if present; fall back to resolving
           if [ -f uv.lock ]; then
-            uv sync --locked
+            uv sync --locked --group dev
           else
-            uv sync
+            uv sync --group dev
           fi
+
+      - name: Run tests with uv and summarize results
+        working-directory: python/p0
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Running unit tests with uv..."
+          uv run python -m unittest discover -s tests -p 'test*.py' -v | tee test_output.txt
+          {
+            echo "### Python p0 test results"
+            echo
+            echo '```text'
+            cat test_output.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Run script with uv and summarize output
         shell: bash
