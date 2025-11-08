@@ -7,6 +7,7 @@ on:
   pull_request:
     paths:
       - 'scala/durabletask/**'
+  workflow_dispatch:
 
 jobs:
   build:
