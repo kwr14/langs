@@ -1,0 +1,61 @@
+name: Scala cassandra-best-practise CI
+
+on:
+  push:
+    paths:
+      - 'scala/cassandra-best-practise/**'
+  pull_request:
+    paths:
+      - 'scala/cassandra-best-practise/**'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    services:
+      cassandra:
+        image: cassandra:4.1
+        ports:
+          - 9042:9042
+        options: >-
+          --health-cmd="nodetool status | grep -q 'UN'" --health-interval=20s
+          --health-timeout=10s --health-retries=10
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Java (Temurin JDK)
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+          cache: 'sbt'
+
+      - name: Cache Ivy/Coursier
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.ivy2/cache
+            ~/.sbt
+            ~/.cache/coursier
+          key: sbt-cassandra-${{ hashFiles('scala/cassandra-best-practise/build.sbt', 'scala/cassandra-best-practise/project/**') }}
+          restore-keys: |
+            sbt-cassandra-
+
+      - name: Wait for Cassandra to be ready
+        shell: bash
+        run: |
+          for i in {1..30}; do
+            if docker inspect --format='{{json .State.Health.Status}}' $(docker ps -q -f ancestor=cassandra:4.1) | grep -q 'healthy'; then
+              echo "Cassandra is healthy"
+              break
+            fi
+            echo "Waiting for Cassandra..."
+            sleep 10
+          done
+
+      - name: Compile and Test
+        working-directory: scala/cassandra-best-practise
+        env:
+          CASSANDRA_HOST: localhost
+          CASSANDRA_PORT: 9042
+        run: sbt -v test

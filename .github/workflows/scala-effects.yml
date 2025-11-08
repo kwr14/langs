@@ -1,0 +1,42 @@
+name: Scala effects CI
+
+on:
+  push:
+    paths:
+      - 'scala/effects/**'
+  pull_request:
+    paths:
+      - 'scala/effects/**'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Java (Temurin JDK)
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+          cache: 'sbt'
+
+      - name: Cache Ivy/Coursier
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.ivy2/cache
+            ~/.sbt
+            ~/.cache/coursier
+          key: sbt-effects-${{ hashFiles('scala/effects/build.sbt', 'scala/effects/project/**') }}
+          restore-keys: |
+            sbt-effects-
+
+      - name: Test
+        working-directory: scala/effects
+        run: sbt -v test
+
+      - name: Run
+        working-directory: scala/effects
+        run: sbt -v run

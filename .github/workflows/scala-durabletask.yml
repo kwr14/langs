@@ -1,0 +1,42 @@
+name: Scala durabletask CI
+
+on:
+  push:
+    paths:
+      - 'scala/durabletask/**'
+  pull_request:
+    paths:
+      - 'scala/durabletask/**'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Java (Temurin JDK)
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+          cache: 'sbt'
+
+      - name: Cache Ivy/Coursier
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.ivy2/cache
+            ~/.sbt
+            ~/.cache/coursier
+          key: sbt-durabletask-${{ hashFiles('scala/durabletask/build.sbt', 'scala/durabletask/project/**') }}
+          restore-keys: |
+            sbt-durabletask-
+
+      - name: Compile
+        working-directory: scala/durabletask
+        run: sbt -v compile
+
+      - name: Test
+        working-directory: scala/durabletask
+        run: sbt -v test
