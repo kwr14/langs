@@ -45,6 +45,12 @@ jobs:
               const url = run?.html_url || w.html_url;
               const started = run?.run_started_at || run?.created_at || null;
               const completed = run?.completed_at || run?.updated_at || null;
+              const lastRun = completed || started || null;
+              let lastRunDisplay = 'n/a';
+              if (lastRun) {
+                try { lastRunDisplay = new Date(lastRun).toISOString(); } catch { lastRunDisplay = String(lastRun); }
+              }
+
               let duration = 'n/a';
               if (started && completed) {
                 const dSec = (new Date(completed) - new Date(started)) / 1000;
@@ -56,11 +62,11 @@ jobs:
               const emojiMap = { success: '✅', failure: '❌', cancelled: '🚫', neutral: '▫️', timed_out: '⏱️', action_required: '🟡', skipped: '⤴️' };
               const emoji = emojiMap[conclusion] || '❓';
 
-              rows.push(`| ${w.name} | ${status} | ${emoji} ${conclusion} | ${event} | ${sha} | ${branch} | ${duration} | [link](${url}) |`);
+              rows.push(`| ${w.name} | ${status} | ${emoji} ${conclusion} | ${event} | ${lastRunDisplay} | ${sha} | ${branch} | ${duration} | [link](${url}) |`);
             }
 
             const header = `# CI Build Monitor\n\nLast updated: ${new Date().toISOString()}\n\n`;
-            const tableHeader = '| Workflow | Status | Conclusion | Event | SHA | Branch | Duration | URL |\n|---|---|---|---|---|---|---|---|\n';
+            const tableHeader = '| Workflow | Status | Conclusion | Event | Last Run | SHA | Branch | Duration | URL |\n|---|---|---|---|---|---|---|---|---|\n';
             const body = rows.length ? rows.join('\n') + '\n' : '_No workflows found_\n';
             const content = header + tableHeader + body;
 
