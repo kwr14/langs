@@ -16,14 +16,20 @@ jobs:
       - name: Summarize changed files
         shell: bash
         run: |
-          set -euo pipefail
+          # Be resilient to missing refs or shallow history
+          set -u
           echo "Event: $GITHUB_EVENT_NAME"
           if [[ "$GITHUB_EVENT_NAME" == "pull_request" ]]; then
             BASE_REF="${{ github.event.pull_request.base.ref }}"
             echo "Base ref: $BASE_REF"
-            # Fetch base branch ref and compare merge-base (triple-dot)
-            git fetch --no-tags origin "$BASE_REF":"refs/remotes/origin/$BASE_REF"
-            git diff --name-only "origin/$BASE_REF"...HEAD | sed 's/^/- /' || echo "No differences detected"
+            # Try to fetch base branch; don't fail if unavailable
+            git fetch --no-tags origin "$BASE_REF":"refs/remotes/origin/$BASE_REF" || true
+            if git rev-parse --verify "refs/remotes/origin/$BASE_REF" >/dev/null 2>&1; then
+              git diff --name-only "refs/remotes/origin/$BASE_REF"...HEAD | sed 's/^/- /' || true
+            else
+              echo "Base ref not available; listing files changed in HEAD"
+              git show --name-only --pretty="" HEAD | sed 's/^/- /' || true
+            fi
           else
             BEFORE="${{ github.event.before }}"
             AFTER="${{ github.sha }}"
@@ -31,9 +37,12 @@ jobs:
             echo "After:  $AFTER"
             if [[ "$BEFORE" == "0000000000000000000000000000000000000000" || -z "$BEFORE" ]]; then
               echo "Initial commit; listing all tracked files"
-              git ls-files | sed 's/^/- /'
+              git ls-files | sed 's/^/- /' || true
+            elif git rev-parse --verify "$BEFORE" >/dev/null 2>&1; then
+              git diff --name-only "$BEFORE" "$AFTER" | sed 's/^/- /' || true
             else
-              git diff --name-only "$BEFORE" "$AFTER" | sed 's/^/- /' || echo "No differences detected"
+              echo "Previous SHA not present; listing files changed in HEAD"
+              git show --name-only --pretty="" HEAD | sed 's/^/- /' || true
             fi
           fi
 
