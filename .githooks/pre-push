@@ -1,0 +1,60 @@
+#!/bin/bash
+# Pre-push hook to format Gleam code before pushing
+
+set -e
+
+echo "🔍 Running pre-push hook..."
+
+# Check if gleam directory exists
+if [ ! -d "gleam" ]; then
+    echo "✓ No Gleam projects found, skipping format check"
+    exit 0
+fi
+
+# Check if gleam is installed
+if ! command -v gleam &> /dev/null; then
+    echo "⚠️  Warning: gleam is not installed. Skipping format check."
+    exit 0
+fi
+
+# Find all Gleam project directories and format them
+formatted=false
+for gleam_project in gleam/*/; do
+    if [ -f "${gleam_project}gleam.toml" ]; then
+        echo "📝 Formatting ${gleam_project}..."
+
+        # Save current directory
+        pushd "${gleam_project}" > /dev/null
+
+        # Format the code
+        gleam format
+
+        # Return to original directory
+        popd > /dev/null
+
+        # Check if there are any changes after formatting
+        if ! git diff --quiet "${gleam_project}"; then
+            echo ""
+            echo "❌ Gleam code was reformatted in ${gleam_project}"
+            echo "   Please review the changes, add them, and commit again:"
+            echo ""
+            echo "   git add ${gleam_project}"
+            echo "   git commit --amend --no-edit"
+            echo "   git push"
+            echo ""
+            exit 1
+        fi
+
+        formatted=true
+    fi
+done
+
+if [ "$formatted" = true ]; then
+    echo "✅ All Gleam code is properly formatted"
+else
+    echo "✓ No Gleam projects found"
+fi
+
+echo "✓ Pre-push hook completed successfully"
+exit 0
+
