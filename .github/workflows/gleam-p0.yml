@@ -3,10 +3,10 @@ name: Gleam p0 CI
 on:
   push:
     paths:
-      - 'gleam/p0/**'
+      - "gleam/p0/**"
   pull_request:
     paths:
-      - 'gleam/p0/**'
+      - "gleam/p0/**"
   workflow_dispatch:
 
 jobs:
@@ -20,7 +20,7 @@ jobs:
         uses: erlef/setup-beam@v1
         with:
           otp-version: "27.0"
-          gleam-version: "1.6.3"
+          gleam-version: "1.13.0"
 
       - name: Download dependencies
         working-directory: gleam/p0
@@ -63,4 +63,3 @@ jobs:
             cat script_output.txt
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
-
