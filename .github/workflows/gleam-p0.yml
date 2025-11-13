@@ -1,0 +1,66 @@
+name: Gleam p0 CI
+
+on:
+  push:
+    paths:
+      - 'gleam/p0/**'
+  pull_request:
+    paths:
+      - 'gleam/p0/**'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Gleam
+        uses: erlef/setup-beam@v1
+        with:
+          otp-version: "27.0"
+          gleam-version: "1.6.3"
+
+      - name: Download dependencies
+        working-directory: gleam/p0
+        run: gleam deps download
+
+      - name: Check formatting
+        working-directory: gleam/p0
+        run: gleam format --check src test
+
+      - name: Build
+        working-directory: gleam/p0
+        run: gleam build
+
+      - name: Run tests and summarize results
+        working-directory: gleam/p0
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Running tests with gleam..."
+          gleam test | tee test_output.txt
+          {
+            echo "### Gleam p0 test results"
+            echo
+            echo '```text'
+            cat test_output.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Run script and summarize output
+        working-directory: gleam/p0
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Running gleam/p0 with gleam run..."
+          gleam run | tee script_output.txt
+          {
+            echo "### Gleam p0 script output"
+            echo
+            echo '```text'
+            cat script_output.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+

@@ -1,6 +1,6 @@
 # langs
 
-A small monorepo for experiments across Python, Scala, Java, and LLM/RAG.
+A small monorepo for experiments across Python, Scala, Java, Gleam, and LLM/RAG.
 
 ## Overview
 - Central place to prototype ideas in multiple languages.
@@ -9,6 +9,7 @@ A small monorepo for experiments across Python, Scala, Java, and LLM/RAG.
 
 ## Repository Structure
 - `python/p0/` — minimal Python project with `pyproject.toml` and `main.py`
+- `gleam/p0/` — minimal Gleam project with `gleam.toml` and basic examples
 - `scala/` — several Scala projects:
   - `effects/` — functional effects playground
   - `durabletask/` — durable task patterns
@@ -21,6 +22,7 @@ A small monorepo for experiments across Python, Scala, Java, and LLM/RAG.
 - `build-monitor.yml` — CI Build Monitor that writes `CI_STATUS.md`
 - `monorepo-basic.yml` — Monorepo Common CI for general checks
 - `python-p0.yml` — Python p0 CI
+- `gleam-p0.yml` — Gleam p0 CI
 - `scala-*.yml` — Scala workflows (some are placeholders / n/a)
 
 ## CI Status
@@ -34,6 +36,9 @@ A small monorepo for experiments across Python, Scala, Java, and LLM/RAG.
 - Python p0
   - Using `uv`: `cd python/p0 && uv sync && uv run python main.py`
   - Using venv: `cd python/p0 && python -m venv .venv && source .venv/bin/activate && pip install -e . && python main.py`
+- Gleam p0
+  - Requires Gleam and Erlang: `cd gleam/p0 && gleam run`
+  - Run tests: `cd gleam/p0 && gleam test`
 - Scala projects
   - Requires `sbt`. Example: `cd scala/effects && sbt test`
 - Java continuations
@@ -46,6 +51,10 @@ A small monorepo for experiments across Python, Scala, Java, and LLM/RAG.
 
 ## Run CI Locally with `act`
 Run workflows locally using Docker with [`nektos/act`](https://github.com/nektos/act).
+
+CI-as-code note:
+- Each module’s CI workflow YAML encodes everything needed to build and run tests.
+- Running the workflow locally with `act` ensures parity with the GitHub-hosted CI.
 
 Prerequisites (macOS):
 - Install Docker Desktop and keep it running.
