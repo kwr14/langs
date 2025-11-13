@@ -19,47 +19,106 @@ jobs:
       - name: Setup Gleam
         uses: erlef/setup-beam@v1
         with:
-          otp-version: "27.0"
+          otp-version: "27.1"
           gleam-version: "1.13.0"
 
       - name: Download dependencies
         working-directory: gleam/p0
-        run: gleam deps download
+        run: |
+          echo "📦 Downloading dependencies..."
+          gleam deps download
 
       - name: Check formatting
         working-directory: gleam/p0
-        run: gleam format --check src test
+        run: |
+          echo "🎨 Checking code formatting..."
+          gleam format --check src test
+          echo "✅ Code formatting is correct"
 
-      - name: Build
+      - name: Build project
         working-directory: gleam/p0
-        run: gleam build
+        run: |
+          echo "🔨 Building project..."
+          gleam build
+          echo "✅ Build successful"
 
-      - name: Run tests and summarize results
+      - name: Run all tests with detailed output
         working-directory: gleam/p0
         shell: bash
         run: |
           set -euo pipefail
-          echo "Running tests with gleam..."
-          gleam test | tee test_output.txt
+          echo "========================================="
+          echo "Running Gleam Tests"
+          echo "========================================="
+          echo ""
+
+          # Run tests and capture output
+          if gleam test 2>&1 | tee test_output.txt; then
+            TEST_STATUS="✅ PASSED"
+            TEST_RESULT="success"
+          else
+            TEST_STATUS="❌ FAILED"
+            TEST_RESULT="failure"
+          fi
+
+          # Count test results
+          PASSED=$(grep -c "passed" test_output.txt || echo "0")
+          FAILED=$(grep -c "failures" test_output.txt || echo "0")
+
+          echo ""
+          echo "========================================="
+          echo "Test Summary: $TEST_STATUS"
+          echo "========================================="
+
+          # Create formatted summary for GitHub
           {
-            echo "### Gleam p0 test results"
-            echo
-            echo '```text'
+            echo "## 🧪 Gleam p0 Test Results"
+            echo ""
+            echo "**Status:** $TEST_STATUS"
+            echo ""
+            echo "| Metric | Value |"
+            echo "|--------|-------|"
+            echo "| Tests Passed | $PASSED |"
+            if [ "$FAILED" != "0" ]; then
+              echo "| Tests Failed | $FAILED |"
+            fi
+            echo ""
+            echo "### Full Test Output"
+            echo ""
+            echo '```'
             cat test_output.txt
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Run script and summarize output
+          # Exit with appropriate code
+          if [ "$TEST_RESULT" = "failure" ]; then
+            exit 1
+          fi
+
+      - name: Run application and capture output
         working-directory: gleam/p0
         shell: bash
         run: |
           set -euo pipefail
-          echo "Running gleam/p0 with gleam run..."
+          echo ""
+          echo "========================================="
+          echo "Running Gleam Application"
+          echo "========================================="
+          echo ""
+
           gleam run | tee script_output.txt
+
+          echo ""
+          echo "========================================="
+          echo "Application completed successfully"
+          echo "========================================="
+
+          # Add to GitHub summary
           {
-            echo "### Gleam p0 script output"
-            echo
-            echo '```text'
+            echo ""
+            echo "## 🚀 Gleam p0 Application Output"
+            echo ""
+            echo '```'
             cat script_output.txt
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
