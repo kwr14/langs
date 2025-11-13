@@ -1,5 +1,6 @@
 import gleam/io
 
+// Main entry point for the Gleam p0 project
 pub fn main() {
   io.println("Hello from Gleam p0!")
   io.println(fibonacci_message(10))
