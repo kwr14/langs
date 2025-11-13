@@ -10,7 +10,7 @@ pub fn fibonacci(n: Int) -> Int {
   case n {
     0 -> 0
     1 -> 1
-    _ ->   fibonacci(n - 1)   +   fibonacci(n - 2)
+    _ -> fibonacci(n - 1) + fibonacci(n - 2)
   }
 }
 
@@ -36,4 +36,3 @@ fn int_to_string(n: Int) -> String {
     _ -> "<number>"
   }
 }
-
