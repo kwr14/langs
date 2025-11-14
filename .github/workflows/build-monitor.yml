@@ -32,6 +32,8 @@ jobs:
               .sort((a, b) => a.name.localeCompare(b.name));
 
             const rows = [];
+            const failureDetails = [];
+
             for (const w of workflows) {
               // Get the latest run for each workflow
               const { data: runsData } = await github.rest.actions.listWorkflowRuns({ owner, repo, workflow_id: w.id, per_page: 1 });
@@ -41,6 +43,7 @@ jobs:
               const conclusion = run?.conclusion || 'n/a';
               const event = run?.event || 'n/a';
               const sha = run?.head_sha ? run.head_sha.substring(0, 7) : 'n/a';
+              const fullSha = run?.head_sha || 'n/a';
               const branch = run?.head_branch || 'n/a';
               const url = run?.html_url || w.html_url;
               const started = run?.run_started_at || run?.created_at || null;
@@ -63,12 +66,128 @@ jobs:
               const emoji = emojiMap[conclusion] || '❓';
 
               rows.push(`| ${w.name} | ${status} | ${emoji} ${conclusion} | ${event} | ${lastRunDisplay} | ${sha} | ${branch} | ${duration} | [link](${url}) |`);
+
+              // Collect detailed failure information
+              if (conclusion === 'failure' || conclusion === 'timed_out') {
+                let commitInfo = null;
+                let author = 'Unknown';
+                let authorEmail = '';
+                let commitMessage = '';
+                let commitUrl = '';
+
+                if (fullSha !== 'n/a') {
+                  try {
+                    const { data: commit } = await github.rest.repos.getCommit({ owner, repo, ref: fullSha });
+                    author = commit.commit.author.name;
+                    authorEmail = commit.commit.author.email;
+                    commitMessage = commit.commit.message.split('\n')[0]; // First line only
+                    commitUrl = commit.html_url;
+                  } catch (e) {
+                    console.log(`Could not fetch commit info for ${fullSha}: ${e.message}`);
+                  }
+                }
+
+                // Get failed jobs
+                let failedJobs = [];
+                if (run?.id) {
+                  try {
+                    const { data: jobsData } = await github.rest.actions.listJobsForWorkflowRun({ owner, repo, run_id: run.id });
+                    failedJobs = (jobsData.jobs || [])
+                      .filter(j => j.conclusion === 'failure' || j.conclusion === 'timed_out')
+                      .map(j => ({ name: j.name, url: j.html_url, conclusion: j.conclusion }));
+                  } catch (e) {
+                    console.log(`Could not fetch jobs for run ${run.id}: ${e.message}`);
+                  }
+                }
+
+                // Create issue link with pre-filled details
+                const issueTitle = encodeURIComponent(`CI Failure: ${w.name} on ${branch}`);
+                const issueBody = encodeURIComponent(
+                  `## CI Build Failure\n\n` +
+                  `**Workflow:** ${w.name}\n` +
+                  `**Branch:** ${branch}\n` +
+                  `**Commit:** ${sha} - ${commitMessage}\n` +
+                  `**Author:** @${author}\n` +
+                  `**Run:** ${url}\n\n` +
+                  `### Failed Jobs\n` +
+                  (failedJobs.length ? failedJobs.map(j => `- [${j.name}](${j.url}) - ${j.conclusion}`).join('\n') : 'No job details available') +
+                  `\n\n### Action Required\n` +
+                  `Please investigate and fix the failing build.\n`
+                );
+                const createIssueUrl = `https://github.com/${owner}/${repo}/issues/new?title=${issueTitle}&body=${issueBody}&assignees=${author}`;
+
+                failureDetails.push({
+                  workflow: w.name,
+                  branch,
+                  sha,
+                  fullSha,
+                  commitMessage,
+                  commitUrl,
+                  author,
+                  authorEmail,
+                  url,
+                  lastRun: lastRunDisplay,
+                  duration,
+                  conclusion,
+                  failedJobs,
+                  createIssueUrl
+                });
+              }
             }
 
-            const header = `# CI Build Monitor\n\nLast updated: ${new Date().toISOString()}\n\n`;
-            const tableHeader = '| Workflow | Status | Conclusion | Event | Last Run | SHA | Branch | Duration | URL |\n|---|---|---|---|---|---|---|---|---|\n';
-            const body = rows.length ? rows.join('\n') + '\n' : '_No workflows found_\n';
-            const content = header + tableHeader + body;
+            // Build the markdown content
+            let content = `# CI Build Monitor\n\n`;
+            content += `Last updated: ${new Date().toISOString()}\n\n`;
+
+            // Summary section
+            const totalWorkflows = workflows.length;
+            const successCount = rows.filter(r => r.includes('✅')).length;
+            const failureCount = rows.filter(r => r.includes('❌')).length;
+            const cancelledCount = rows.filter(r => r.includes('🚫')).length;
+            const timedOutCount = rows.filter(r => r.includes('⏱️')).length;
+
+            content += `## Summary\n\n`;
+            content += `- **Total Workflows:** ${totalWorkflows}\n`;
+            content += `- **✅ Successful:** ${successCount}\n`;
+            content += `- **❌ Failed:** ${failureCount}\n`;
+            content += `- **🚫 Cancelled:** ${cancelledCount}\n`;
+            content += `- **⏱️ Timed Out:** ${timedOutCount}\n\n`;
+
+            // Failures section with detailed information
+            if (failureDetails.length > 0) {
+              content += `## ❌ Failed Builds - Detailed Information\n\n`;
+
+              for (const failure of failureDetails) {
+                content += `### ${failure.workflow}\n\n`;
+                content += `| Field | Value |\n`;
+                content += `|-------|-------|\n`;
+                content += `| **Status** | ${failure.conclusion === 'failure' ? '❌ Failed' : '⏱️ Timed Out'} |\n`;
+                content += `| **Branch** | \`${failure.branch}\` |\n`;
+                content += `| **Commit** | [\`${failure.sha}\`](${failure.commitUrl}) |\n`;
+                content += `| **Message** | ${failure.commitMessage || 'N/A'} |\n`;
+                content += `| **Author** | ${failure.author} |\n`;
+                content += `| **Last Run** | ${failure.lastRun} |\n`;
+                content += `| **Duration** | ${failure.duration} |\n`;
+                content += `| **Run URL** | [View Run](${failure.url}) |\n`;
+                content += `| **Actions** | [📝 Create Issue & Assign to Author](${failure.createIssueUrl}) |\n\n`;
+
+                if (failure.failedJobs.length > 0) {
+                  content += `**Failed Jobs:**\n`;
+                  for (const job of failure.failedJobs) {
+                    content += `- [${job.name}](${job.url}) - ${job.conclusion}\n`;
+                  }
+                  content += `\n`;
+                }
+
+                content += `---\n\n`;
+              }
+            }
+
+            // All workflows table
+            content += `## All Workflows\n\n`;
+            content += '| Workflow | Status | Conclusion | Event | Last Run | SHA | Branch | Duration | URL |\n';
+            content += '|---|---|---|---|---|---|---|---|---|\n';
+            content += rows.length ? rows.join('\n') + '\n' : '_No workflows found_\n';
 
             fs.writeFileSync('CI_STATUS.md', content);
 
