@@ -64,8 +64,11 @@ jobs:
               const emojiMap = { success: '✅', failure: '❌', cancelled: '🚫', neutral: '▫️', timed_out: '⏱️', action_required: '🟡', skipped: '⤴️' };
               const emoji = emojiMap[conclusion] || '❓';
 
-              // Main table row
-              tableRows.push(`| ${w.name} | ${status} | ${emoji} ${conclusion} | ${event} | ${lastRunDisplay} | ${sha} | ${branch} | ${duration} | [link](${url}) |`);
+              // Smart URL - for failures, it will link to details; for success, to the build
+              const smartUrl = (conclusion === 'failure' || conclusion === 'timed_out') ? '⬇️ Details' : `[View](${url})`;
+
+              // Main table row (removed SHA column)
+              tableRows.push(`| ${w.name} | ${status} | ${emoji} ${conclusion} | ${event} | ${lastRunDisplay} | ${branch} | ${duration} | ${smartUrl} |`);
 
               // Add detailed failure information as collapsible row
               if (conclusion === 'failure' || conclusion === 'timed_out') {
@@ -113,8 +116,9 @@ jobs:
                 );
                 const createIssueUrl = `https://github.com/${owner}/${repo}/issues/new?title=${issueTitle}&body=${issueBody}&assignees=${author}`;
 
-                // Add collapsible details row
-                tableRows.push(`| <details><summary>📋 <strong>Failure Details</strong></summary><br/><br/>**Commit:** [\`${sha}\`](${commitUrl}) - ${commitMessage}<br/>**Author:** ${author}<br/>**Failed Jobs:** ${failedJobs.map(j => `[${j.name}](${j.url})`).join(', ') || 'N/A'}<br/>**Actions:** [📝 Create Issue & Assign to ${author}](${createIssueUrl})</details> | | | | | | | | |`);
+                // Add collapsible details row (compact format, removed SHA column)
+                const failedJobsList = failedJobs.map(j => `[${j.name}](${j.url})`).join(', ') || 'N/A';
+                tableRows.push(`| <details><summary>📋 <strong>Failure Details</strong></summary><br/><br/>**Commit:** [\`${sha}\`](${commitUrl}) - ${commitMessage}<br/>**Author:** ${author}<br/>**Failed Jobs:** ${failedJobsList}<br/>**Actions:** [📝 Create Issue](${createIssueUrl}) • [🔗 View Run](${url})</details> | | | | | | | |`);
               }
             }
 
@@ -138,9 +142,9 @@ jobs:
 
             // All workflows table with inline collapsible details
             content += `## All Workflows\n\n`;
-            content += `💡 *Failed workflows have expandable details directly below them in the table*\n\n`;
-            content += '| Workflow | Status | Conclusion | Event | Last Run | SHA | Branch | Duration | URL |\n';
-            content += '|---|---|---|---|---|---|---|---|---|\n';
+            content += `💡 *Failed workflows show ⬇️ Details - click to expand inline. Successful workflows show View link.*\n\n`;
+            content += '| Workflow | Status | Conclusion | Event | Last Run | Branch | Duration | URL |\n';
+            content += '|---|---|---|---|---|---|---|---|\n';
             content += tableRows.length ? tableRows.join('\n') + '\n' : '_No workflows found_\n';
 
             fs.writeFileSync('CI_STATUS.md', content);
