@@ -114,7 +114,8 @@ jobs:
 
                 // Build collapsible details in URL column
                 const failedJobsList = failedJobs.map(j => `[${j.name}](${j.url})`).join(', ') || 'N/A';
-                smartUrl = `<details><summary>⬇️ Details</summary><br/><br/>**Commit:** [\`${sha}\`](${commitUrl})<br/>**Author:** ${author}<br/>**Failed Jobs:** ${failedJobsList}<br/>**Actions:** [👤 Assign to Author](${createIssueUrl})</details>`;
+                const assignLink = `<a href="${createIssueUrl}">👤 Assign to Author</a>`;
+                smartUrl = `<details><summary>⬇️ Details</summary><br/><br/>**Commit:** [\`${sha}\`](${commitUrl})<br/>**Author:** ${author}<br/>**Failed Jobs:** ${failedJobsList}<br/>**Actions:** ${assignLink}</details>`;
               } else {
                 // For successful builds, just show a link
                 smartUrl = `[View](${url})`;
