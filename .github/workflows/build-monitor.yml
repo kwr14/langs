@@ -65,7 +65,15 @@ jobs:
               const emojiMap = { success: '✅', failure: '❌', cancelled: '🚫', neutral: '▫️', timed_out: '⏱️', action_required: '🟡', skipped: '⤴️' };
               const emoji = emojiMap[conclusion] || '❓';
 
-              rows.push(`| ${w.name} | ${status} | ${emoji} ${conclusion} | ${event} | ${lastRunDisplay} | ${sha} | ${branch} | ${duration} | [link](${url}) |`);
+              // Create a sanitized anchor ID for linking
+              const anchorId = w.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+
+              // Add details link for failed workflows
+              const detailsLink = (conclusion === 'failure' || conclusion === 'timed_out')
+                ? `[📋 Details](#${anchorId})`
+                : '';
+
+              rows.push(`| ${w.name} | ${status} | ${emoji} ${conclusion} | ${event} | ${lastRunDisplay} | ${sha} | ${branch} | ${duration} | [link](${url}) | ${detailsLink} |`);
 
               // Collect detailed failure information
               if (conclusion === 'failure' || conclusion === 'timed_out') {
@@ -118,6 +126,7 @@ jobs:
 
                 failureDetails.push({
                   workflow: w.name,
+                  anchorId,
                   branch,
                   sha,
                   fullSha,
@@ -153,12 +162,15 @@ jobs:
             content += `- **🚫 Cancelled:** ${cancelledCount}\n`;
             content += `- **⏱️ Timed Out:** ${timedOutCount}\n\n`;
 
-            // Failures section with detailed information
+            // Failures section with detailed information (collapsible)
             if (failureDetails.length > 0) {
               content += `## ❌ Failed Builds - Detailed Information\n\n`;
+              content += `Click on each workflow to expand details.\n\n`;
 
               for (const failure of failureDetails) {
-                content += `### ${failure.workflow}\n\n`;
+                content += `<details id="${failure.anchorId}">\n`;
+                content += `<summary><strong>🔴 ${failure.workflow}</strong> - ${failure.conclusion === 'failure' ? '❌ Failed' : '⏱️ Timed Out'} on <code>${failure.branch}</code></summary>\n\n`;
+
                 content += `| Field | Value |\n`;
                 content += `|-------|-------|\n`;
                 content += `| **Status** | ${failure.conclusion === 'failure' ? '❌ Failed' : '⏱️ Timed Out'} |\n`;
@@ -179,14 +191,14 @@ jobs:
                   content += `\n`;
                 }
 
-                content += `---\n\n`;
+                content += `</details>\n\n`;
               }
             }
 
             // All workflows table
             content += `## All Workflows\n\n`;
-            content += '| Workflow | Status | Conclusion | Event | Last Run | SHA | Branch | Duration | URL |\n';
-            content += '|---|---|---|---|---|---|---|---|---|\n';
+            content += '| Workflow | Status | Conclusion | Event | Last Run | SHA | Branch | Duration | URL | Details |\n';
+            content += '|---|---|---|---|---|---|---|---|---|---|\n';
             content += rows.length ? rows.join('\n') + '\n' : '_No workflows found_\n';
 
             fs.writeFileSync('CI_STATUS.md', content);
