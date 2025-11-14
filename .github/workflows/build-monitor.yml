@@ -64,15 +64,10 @@ jobs:
               const emojiMap = { success: '✅', failure: '❌', cancelled: '🚫', neutral: '▫️', timed_out: '⏱️', action_required: '🟡', skipped: '⤴️' };
               const emoji = emojiMap[conclusion] || '❓';
 
-              // Smart URL - for failures, link to details anchor; for success, to the build
-              const workflowId = w.name.toLowerCase().replace(/\s+/g, '-');
-              const smartUrl = (conclusion === 'failure' || conclusion === 'timed_out') ? `[⬇️ Details](#${workflowId})` : `[View](${url})`;
-
-              // Main table row (removed SHA column)
-              tableRows.push(`| ${w.name} | ${status} | ${emoji} ${conclusion} | ${event} | ${lastRunDisplay} | ${branch} | ${duration} | ${smartUrl} |`);
-
-              // Add detailed failure information as collapsible row
+              // Build smart URL column with embedded collapsible details for failures
+              let smartUrl;
               if (conclusion === 'failure' || conclusion === 'timed_out') {
+                // Fetch commit and job details for failures
                 let author = 'Unknown';
                 let commitMessage = '';
                 let commitUrl = '';
@@ -117,10 +112,16 @@ jobs:
                 );
                 const createIssueUrl = `https://github.com/${owner}/${repo}/issues/new?title=${issueTitle}&body=${issueBody}&assignees=${author}`;
 
-                // Add collapsible details row (compact format, removed SHA column)
+                // Build collapsible details in URL column
                 const failedJobsList = failedJobs.map(j => `[${j.name}](${j.url})`).join(', ') || 'N/A';
-                tableRows.push(`| <details id="${workflowId}"><summary>📋 <strong>Failure Details</strong></summary><br/><br/>**Commit:** [\`${sha}\`](${commitUrl})<br/>**Author:** ${author}<br/>**Failed Jobs:** ${failedJobsList}<br/>**Actions:** [👤 Assign to Author](${createIssueUrl}) • [🔗 View Run](${url})</details> | | | | | | | |`);
+                smartUrl = `<details><summary>⬇️ Details</summary><br/><br/>**Commit:** [\`${sha}\`](${commitUrl})<br/>**Author:** ${author}<br/>**Failed Jobs:** ${failedJobsList}<br/>**Actions:** [👤 Assign to Author](${createIssueUrl})</details>`;
+              } else {
+                // For successful builds, just show a link
+                smartUrl = `[View](${url})`;
               }
+
+              // Main table row
+              tableRows.push(`| ${w.name} | ${status} | ${emoji} ${conclusion} | ${event} | ${lastRunDisplay} | ${branch} | ${duration} | ${smartUrl} |`);
             }
 
             // Build the markdown content
