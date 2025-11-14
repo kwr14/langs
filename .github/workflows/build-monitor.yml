@@ -31,8 +31,7 @@ jobs:
               .filter(w => !!w.name)
               .sort((a, b) => a.name.localeCompare(b.name));
 
-            const rows = [];
-            const failureDetails = [];
+            const tableRows = [];
 
             for (const w of workflows) {
               // Get the latest run for each workflow
@@ -65,21 +64,12 @@ jobs:
               const emojiMap = { success: '✅', failure: '❌', cancelled: '🚫', neutral: '▫️', timed_out: '⏱️', action_required: '🟡', skipped: '⤴️' };
               const emoji = emojiMap[conclusion] || '❓';
 
-              // Create a sanitized anchor ID for linking
-              const anchorId = w.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+              // Main table row
+              tableRows.push(`| ${w.name} | ${status} | ${emoji} ${conclusion} | ${event} | ${lastRunDisplay} | ${sha} | ${branch} | ${duration} | [link](${url}) |`);
 
-              // Add details link for failed workflows
-              const detailsLink = (conclusion === 'failure' || conclusion === 'timed_out')
-                ? `[📋 Details](#${anchorId})`
-                : '';
-
-              rows.push(`| ${w.name} | ${status} | ${emoji} ${conclusion} | ${event} | ${lastRunDisplay} | ${sha} | ${branch} | ${duration} | [link](${url}) | ${detailsLink} |`);
-
-              // Collect detailed failure information
+              // Add detailed failure information as collapsible row
               if (conclusion === 'failure' || conclusion === 'timed_out') {
-                let commitInfo = null;
                 let author = 'Unknown';
-                let authorEmail = '';
                 let commitMessage = '';
                 let commitUrl = '';
 
@@ -87,7 +77,6 @@ jobs:
                   try {
                     const { data: commit } = await github.rest.repos.getCommit({ owner, repo, ref: fullSha });
                     author = commit.commit.author.name;
-                    authorEmail = commit.commit.author.email;
                     commitMessage = commit.commit.message.split('\n')[0]; // First line only
                     commitUrl = commit.html_url;
                   } catch (e) {
@@ -124,23 +113,8 @@ jobs:
                 );
                 const createIssueUrl = `https://github.com/${owner}/${repo}/issues/new?title=${issueTitle}&body=${issueBody}&assignees=${author}`;
 
-                failureDetails.push({
-                  workflow: w.name,
-                  anchorId,
-                  branch,
-                  sha,
-                  fullSha,
-                  commitMessage,
-                  commitUrl,
-                  author,
-                  authorEmail,
-                  url,
-                  lastRun: lastRunDisplay,
-                  duration,
-                  conclusion,
-                  failedJobs,
-                  createIssueUrl
-                });
+                // Add collapsible details row
+                tableRows.push(`| <details><summary>📋 <strong>Failure Details</strong></summary><br/><br/>**Commit:** [\`${sha}\`](${commitUrl}) - ${commitMessage}<br/>**Author:** ${author}<br/>**Failed Jobs:** ${failedJobs.map(j => `[${j.name}](${j.url})`).join(', ') || 'N/A'}<br/>**Actions:** [📝 Create Issue & Assign to ${author}](${createIssueUrl})</details> | | | | | | | | |`);
               }
             }
 
@@ -150,10 +124,10 @@ jobs:
 
             // Summary section
             const totalWorkflows = workflows.length;
-            const successCount = rows.filter(r => r.includes('✅')).length;
-            const failureCount = rows.filter(r => r.includes('❌')).length;
-            const cancelledCount = rows.filter(r => r.includes('🚫')).length;
-            const timedOutCount = rows.filter(r => r.includes('⏱️')).length;
+            const successCount = tableRows.filter(r => r.includes('✅')).length;
+            const failureCount = tableRows.filter(r => r.includes('❌')).length;
+            const cancelledCount = tableRows.filter(r => r.includes('🚫')).length;
+            const timedOutCount = tableRows.filter(r => r.includes('⏱️')).length;
 
             content += `## Summary\n\n`;
             content += `- **Total Workflows:** ${totalWorkflows}\n`;
@@ -162,44 +136,12 @@ jobs:
             content += `- **🚫 Cancelled:** ${cancelledCount}\n`;
             content += `- **⏱️ Timed Out:** ${timedOutCount}\n\n`;
 
-            // Failures section with detailed information (collapsible)
-            if (failureDetails.length > 0) {
-              content += `## ❌ Failed Builds - Detailed Information\n\n`;
-              content += `Click on each workflow to expand details.\n\n`;
-
-              for (const failure of failureDetails) {
-                content += `<details id="${failure.anchorId}">\n`;
-                content += `<summary><strong>🔴 ${failure.workflow}</strong> - ${failure.conclusion === 'failure' ? '❌ Failed' : '⏱️ Timed Out'} on <code>${failure.branch}</code></summary>\n\n`;
-
-                content += `| Field | Value |\n`;
-                content += `|-------|-------|\n`;
-                content += `| **Status** | ${failure.conclusion === 'failure' ? '❌ Failed' : '⏱️ Timed Out'} |\n`;
-                content += `| **Branch** | \`${failure.branch}\` |\n`;
-                content += `| **Commit** | [\`${failure.sha}\`](${failure.commitUrl}) |\n`;
-                content += `| **Message** | ${failure.commitMessage || 'N/A'} |\n`;
-                content += `| **Author** | ${failure.author} |\n`;
-                content += `| **Last Run** | ${failure.lastRun} |\n`;
-                content += `| **Duration** | ${failure.duration} |\n`;
-                content += `| **Run URL** | [View Run](${failure.url}) |\n`;
-                content += `| **Actions** | [📝 Create Issue & Assign to Author](${failure.createIssueUrl}) |\n\n`;
-
-                if (failure.failedJobs.length > 0) {
-                  content += `**Failed Jobs:**\n`;
-                  for (const job of failure.failedJobs) {
-                    content += `- [${job.name}](${job.url}) - ${job.conclusion}\n`;
-                  }
-                  content += `\n`;
-                }
-
-                content += `</details>\n\n`;
-              }
-            }
-
-            // All workflows table
+            // All workflows table with inline collapsible details
             content += `## All Workflows\n\n`;
-            content += '| Workflow | Status | Conclusion | Event | Last Run | SHA | Branch | Duration | URL | Details |\n';
-            content += '|---|---|---|---|---|---|---|---|---|---|\n';
-            content += rows.length ? rows.join('\n') + '\n' : '_No workflows found_\n';
+            content += `💡 *Failed workflows have expandable details directly below them in the table*\n\n`;
+            content += '| Workflow | Status | Conclusion | Event | Last Run | SHA | Branch | Duration | URL |\n';
+            content += '|---|---|---|---|---|---|---|---|---|\n';
+            content += tableRows.length ? tableRows.join('\n') + '\n' : '_No workflows found_\n';
 
             fs.writeFileSync('CI_STATUS.md', content);
 
