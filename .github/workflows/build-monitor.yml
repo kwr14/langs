@@ -29,113 +29,138 @@ jobs:
           script: |
             const fs = require('fs');
             const owner = context.repo.owner;
-            const repo = context.repo.repo;
 
-            // List all workflows in the repo
-            const { data: workflowsData } = await github.rest.actions.listRepoWorkflows({ owner, repo, per_page: 100 });
-            const workflows = (workflowsData.workflows || [])
-              .filter(w => !!w.name)
-              .sort((a, b) => a.name.localeCompare(b.name));
+            // Define repositories to monitor
+            // Format: { owner: 'owner-name', repo: 'repo-name' }
+            const repositories = [
+              { owner: owner, repo: context.repo.repo }, // Current repo (langs)
+              { owner: 'phel-lang', repo: 'phel-lang' }, // Phel repository
+            ];
 
             const tableRows = [];
 
-            for (const w of workflows) {
-              // Get the latest run for each workflow
-              const { data: runsData } = await github.rest.actions.listWorkflowRuns({ owner, repo, workflow_id: w.id, per_page: 1 });
-              const run = (runsData.workflow_runs || [])[0];
+            for (const { owner: repoOwner, repo: repoName } of repositories) {
+              try {
+                // List all workflows in the repo
+                const { data: workflowsData } = await github.rest.actions.listRepoWorkflows({
+                  owner: repoOwner,
+                  repo: repoName,
+                  per_page: 100
+                });
+                const workflows = (workflowsData.workflows || [])
+                  .filter(w => !!w.name)
+                  .sort((a, b) => a.name.localeCompare(b.name));
 
-              const status = run?.status || 'n/a';
-              const conclusion = run?.conclusion || 'n/a';
-              const event = run?.event || 'n/a';
-              const sha = run?.head_sha ? run.head_sha.substring(0, 7) : 'n/a';
-              const fullSha = run?.head_sha || 'n/a';
-              const branch = run?.head_branch || 'n/a';
-              const url = run?.html_url || w.html_url;
-              const started = run?.run_started_at || run?.created_at || null;
-              const completed = run?.completed_at || run?.updated_at || null;
-              const lastRun = completed || started || null;
-              let lastRunDisplay = 'n/a';
-              if (lastRun) {
-                try {
-                  const date = new Date(lastRun);
-                  // Format as: Nov 14, 22:53
-                  const month = date.toLocaleString('en-US', { month: 'short' });
-                  const day = date.getDate();
-                  const hours = String(date.getHours()).padStart(2, '0');
-                  const minutes = String(date.getMinutes()).padStart(2, '0');
-                  lastRunDisplay = `${month} ${day}, ${hours}:${minutes}`;
-                } catch { lastRunDisplay = String(lastRun); }
-              }
+                for (const w of workflows) {
+                  // Get the latest run for each workflow
+                  const { data: runsData } = await github.rest.actions.listWorkflowRuns({
+                    owner: repoOwner,
+                    repo: repoName,
+                    workflow_id: w.id,
+                    per_page: 1
+                  });
+                  const run = (runsData.workflow_runs || [])[0];
 
-              const emojiMap = { success: '✅', failure: '❌', cancelled: '🚫', neutral: '▫️', timed_out: '⏱️', action_required: '🟡', skipped: '⤴️' };
-              const emoji = emojiMap[conclusion] || '❓';
-
-              // Build smart URL column with embedded collapsible details for failures
-              let smartUrl;
-              if (conclusion === 'failure' || conclusion === 'timed_out') {
-                // Fetch commit and job details for failures
-                let author = 'Unknown';
-                let commitMessage = '';
-                let commitUrl = '';
-
-                if (fullSha !== 'n/a') {
-                  try {
-                    const { data: commit } = await github.rest.repos.getCommit({ owner, repo, ref: fullSha });
-                    author = commit.commit.author.name;
-                    commitMessage = commit.commit.message.split('\n')[0]; // First line only
-                    commitUrl = commit.html_url;
-                  } catch (e) {
-                    console.log(`Could not fetch commit info for ${fullSha}: ${e.message}`);
+                  const status = run?.status || 'n/a';
+                  const conclusion = run?.conclusion || 'n/a';
+                  const event = run?.event || 'n/a';
+                  const sha = run?.head_sha ? run.head_sha.substring(0, 7) : 'n/a';
+                  const fullSha = run?.head_sha || 'n/a';
+                  const branch = run?.head_branch || 'n/a';
+                  const url = run?.html_url || w.html_url;
+                  const started = run?.run_started_at || run?.created_at || null;
+                  const completed = run?.completed_at || run?.updated_at || null;
+                  const lastRun = completed || started || null;
+                  let lastRunDisplay = 'n/a';
+                  if (lastRun) {
+                    try {
+                      const date = new Date(lastRun);
+                      // Format as: Nov 14, 22:53
+                      const month = date.toLocaleString('en-US', { month: 'short' });
+                      const day = date.getDate();
+                      const hours = String(date.getHours()).padStart(2, '0');
+                      const minutes = String(date.getMinutes()).padStart(2, '0');
+                      lastRunDisplay = `${month} ${day}, ${hours}:${minutes}`;
+                    } catch { lastRunDisplay = String(lastRun); }
                   }
-                }
 
-                // Get failed jobs
-                let failedJobs = [];
-                if (run?.id) {
-                  try {
-                    const { data: jobsData } = await github.rest.actions.listJobsForWorkflowRun({ owner, repo, run_id: run.id });
-                    failedJobs = (jobsData.jobs || [])
-                      .filter(j => j.conclusion === 'failure' || j.conclusion === 'timed_out')
-                      .map(j => ({ name: j.name, url: j.html_url, conclusion: j.conclusion }));
-                  } catch (e) {
-                    console.log(`Could not fetch jobs for run ${run.id}: ${e.message}`);
+                  const emojiMap = { success: '✅', failure: '❌', cancelled: '🚫', neutral: '▫️', timed_out: '⏱️', action_required: '🟡', skipped: '⤴️' };
+                  const emoji = emojiMap[conclusion] || '❓';
+
+                  // Build smart URL column with embedded collapsible details for failures
+                  let smartUrl;
+                  if (conclusion === 'failure' || conclusion === 'timed_out') {
+                    // Fetch commit and job details for failures
+                    let author = 'Unknown';
+                    let commitMessage = '';
+                    let commitUrl = '';
+
+                    if (fullSha !== 'n/a') {
+                      try {
+                        const { data: commit } = await github.rest.repos.getCommit({ owner: repoOwner, repo: repoName, ref: fullSha });
+                        author = commit.commit.author.name;
+                        commitMessage = commit.commit.message.split('\n')[0]; // First line only
+                        commitUrl = commit.html_url;
+                      } catch (e) {
+                        console.log(`Could not fetch commit info for ${fullSha}: ${e.message}`);
+                      }
+                    }
+
+                    // Get failed jobs
+                    let failedJobs = [];
+                    if (run?.id) {
+                      try {
+                        const { data: jobsData } = await github.rest.actions.listJobsForWorkflowRun({ owner: repoOwner, repo: repoName, run_id: run.id });
+                        failedJobs = (jobsData.jobs || [])
+                          .filter(j => j.conclusion === 'failure' || j.conclusion === 'timed_out')
+                          .map(j => ({ name: j.name, url: j.html_url, conclusion: j.conclusion }));
+                      } catch (e) {
+                        console.log(`Could not fetch jobs for run ${run.id}: ${e.message}`);
+                      }
+                    }
+
+                    // Create issue link with pre-filled details
+                    const issueTitle = encodeURIComponent(`CI Failure: ${w.name} on ${branch}`);
+                    const issueBody = encodeURIComponent(
+                      `## CI Build Failure\n\n` +
+                      `**Repository:** ${repoOwner}/${repoName}\n` +
+                      `**Workflow:** ${w.name}\n` +
+                      `**Branch:** ${branch}\n` +
+                      `**Commit:** ${sha} - ${commitMessage}\n` +
+                      `**Author:** @${author}\n` +
+                      `**Run:** ${url}\n\n` +
+                      `### Failed Jobs\n` +
+                      (failedJobs.length ? failedJobs.map(j => `- [${j.name}](${j.url}) - ${j.conclusion}`).join('\n') : 'No job details available') +
+                      `\n\n### Action Required\n` +
+                      `Please investigate and fix the failing build.\n`
+                    );
+                    const createIssueUrl = `https://github.com/${repoOwner}/${repoName}/issues/new?title=${issueTitle}&body=${issueBody}&assignees=${author}`;
+
+                    // Build collapsible details in URL column
+                    const failedJobsList = failedJobs.map(j => `[${j.name}](${j.url})`).join(', ') || 'N/A';
+                    const assignLink = `<a href="${createIssueUrl}">👤 Assign to Author</a>`;
+                    smartUrl = `<details><summary>⬇️ Details</summary><br/><br/>📝 [\`${sha}\`](${commitUrl})<br/>👤 ${author}<br/>❌ ${failedJobsList}<br/>⚡ ${assignLink}</details>`;
+                  } else {
+                    // For successful builds, just show a link
+                    smartUrl = `[View](${url})`;
                   }
+
+                  // Repository display name
+                  const repoDisplay = `${repoOwner}/${repoName}`;
+
+                  // Main table row with repository column
+                  tableRows.push(`| ${repoDisplay} | ${w.name} | ${status} | ${emoji} ${conclusion} | ${event} | ${lastRunDisplay} | ${branch} | ${smartUrl} |`);
                 }
-
-                // Create issue link with pre-filled details
-                const issueTitle = encodeURIComponent(`CI Failure: ${w.name} on ${branch}`);
-                const issueBody = encodeURIComponent(
-                  `## CI Build Failure\n\n` +
-                  `**Workflow:** ${w.name}\n` +
-                  `**Branch:** ${branch}\n` +
-                  `**Commit:** ${sha} - ${commitMessage}\n` +
-                  `**Author:** @${author}\n` +
-                  `**Run:** ${url}\n\n` +
-                  `### Failed Jobs\n` +
-                  (failedJobs.length ? failedJobs.map(j => `- [${j.name}](${j.url}) - ${j.conclusion}`).join('\n') : 'No job details available') +
-                  `\n\n### Action Required\n` +
-                  `Please investigate and fix the failing build.\n`
-                );
-                const createIssueUrl = `https://github.com/${owner}/${repo}/issues/new?title=${issueTitle}&body=${issueBody}&assignees=${author}`;
-
-                // Build collapsible details in URL column
-                const failedJobsList = failedJobs.map(j => `[${j.name}](${j.url})`).join(', ') || 'N/A';
-                const assignLink = `<a href="${createIssueUrl}">👤 Assign to Author</a>`;
-                smartUrl = `<details><summary>⬇️ Details</summary><br/><br/>📝 [\`${sha}\`](${commitUrl})<br/>👤 ${author}<br/>❌ ${failedJobsList}<br/>⚡ ${assignLink}</details>`;
-              } else {
-                // For successful builds, just show a link
-                smartUrl = `[View](${url})`;
+              } catch (error) {
+                console.log(`Error processing repository ${repoOwner}/${repoName}: ${error.message}`);
               }
-
-              // Main table row
-              tableRows.push(`| ${w.name} | ${status} | ${emoji} ${conclusion} | ${event} | ${lastRunDisplay} | ${branch} | ${smartUrl} |`);
             }
 
             // Build the markdown content
             let content = `# CI Build Monitor\n\n`;
 
             // Summary section - one line
-            const totalWorkflows = workflows.length;
+            const totalWorkflows = tableRows.length;
             const successCount = tableRows.filter(r => r.includes('✅')).length;
             const failureCount = tableRows.filter(r => r.includes('❌')).length;
             const cancelledCount = tableRows.filter(r => r.includes('🚫')).length;
@@ -145,8 +170,8 @@ jobs:
 
             // All workflows table with inline collapsible details
             content += `## All Workflows\n\n`;
-            content += '| Workflow | Status | Conclusion | Event | Last Run | Branch | URL |\n';
-            content += '|---|---|---|---|---|---|---|\n';
+            content += '| Repository | Workflow | Status | Conclusion | Event | Last Run | Branch | URL |\n';
+            content += '|---|---|---|---|---|---|---|---|\n';
             content += tableRows.length ? tableRows.join('\n') + '\n' : '_No workflows found_\n';
 
             // Bottom info line with last updated
