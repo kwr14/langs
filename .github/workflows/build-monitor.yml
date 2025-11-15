@@ -133,28 +133,25 @@ jobs:
 
             // Build the markdown content
             let content = `# CI Build Monitor\n\n`;
-            content += `Last updated: ${new Date().toISOString()}\n\n`;
 
-            // Summary section
+            // Summary section - one line
             const totalWorkflows = workflows.length;
             const successCount = tableRows.filter(r => r.includes('✅')).length;
             const failureCount = tableRows.filter(r => r.includes('❌')).length;
             const cancelledCount = tableRows.filter(r => r.includes('🚫')).length;
             const timedOutCount = tableRows.filter(r => r.includes('⏱️')).length;
 
-            content += `## Summary\n\n`;
-            content += `- **Total Workflows:** ${totalWorkflows}\n`;
-            content += `- **✅ Successful:** ${successCount}\n`;
-            content += `- **❌ Failed:** ${failureCount}\n`;
-            content += `- **🚫 Cancelled:** ${cancelledCount}\n`;
-            content += `- **⏱️ Timed Out:** ${timedOutCount}\n\n`;
+            content += `**Total:** ${totalWorkflows} | **✅ Successful:** ${successCount} | **❌ Failed:** ${failureCount} | **🚫 Cancelled:** ${cancelledCount} | **⏱️ Timed Out:** ${timedOutCount}\n\n`;
 
             // All workflows table with inline collapsible details
             content += `## All Workflows\n\n`;
-            content += `💡 *Failed workflows show ⬇️ Details - click to expand inline. Successful workflows show View link.*\n\n`;
             content += '| Workflow | Status | Conclusion | Event | Last Run | Branch | URL |\n';
             content += '|---|---|---|---|---|---|---|\n';
             content += tableRows.length ? tableRows.join('\n') + '\n' : '_No workflows found_\n';
+
+            // Bottom info line with last updated
+            const lastUpdated = new Date().toISOString();
+            content += `\n💡 *Failed workflows show ⬇️ Details - click to expand inline. Successful workflows show View link. Last updated: ${lastUpdated}*\n`;
 
             // Create HTML page for GitHub Pages
             const html = `<!DOCTYPE html>
