@@ -1,43 +1,43 @@
 # Implementation Tasks
 
 ## 1. Research & Design
-- [ ] 1.1 Review existing API endpoints in ServerComponent.scala
-- [ ] 1.2 Document current request/response data models
-- [ ] 1.3 Decide on approach: manual OpenAPI spec vs. code-first with tapir
-- [ ] 1.4 Choose OpenAPI version (3.0 vs 3.1)
+- [x] 1.1 Review existing API endpoints in ServerComponent.scala
+- [x] 1.2 Document current request/response data models
+- [x] 1.3 Decide on approach: manual OpenAPI spec vs. code-first with tapir
+- [x] 1.4 Choose OpenAPI version (3.0 vs 3.1)
 
 ## 2. Create OpenAPI Specification
-- [ ] 2.1 Create `scala/cassandra-best-practise/openapi.yaml`
-- [ ] 2.2 Define API metadata (title, version, description, servers)
-- [ ] 2.3 Document POST /workflows endpoint
-  - [ ] 2.3.1 Request body schema (WorkflowDefinition)
-  - [ ] 2.3.2 Query parameters (variables)
-  - [ ] 2.3.3 Response schema (Workflow)
-  - [ ] 2.3.4 Example request/response
-- [ ] 2.4 Document GET /workflows/{id} endpoint
-  - [ ] 2.4.1 Path parameter (id: UUID)
-  - [ ] 2.4.2 Success response (Workflow)
-  - [ ] 2.4.3 404 response (not found)
-  - [ ] 2.4.4 Example request/response
-- [ ] 2.5 Document GET /workflows/{id}/result endpoint
-  - [ ] 2.5.1 Path parameter (id: UUID)
-  - [ ] 2.5.2 Success response (WorkflowResult)
-  - [ ] 2.5.3 404 response (not found)
-  - [ ] 2.5.4 Example request/response
+- [x] 2.1 Create `scala/cassandra-best-practise/openapi.yaml`
+- [x] 2.2 Define API metadata (title, version, description, servers)
+- [x] 2.3 Document POST /workflows endpoint
+  - [x] 2.3.1 Request body schema (WorkflowDefinition)
+  - [x] 2.3.2 Query parameters (variables)
+  - [x] 2.3.3 Response schema (Workflow)
+  - [x] 2.3.4 Example request/response
+- [x] 2.4 Document GET /workflows/{id} endpoint
+  - [x] 2.4.1 Path parameter (id: UUID)
+  - [x] 2.4.2 Success response (Workflow)
+  - [x] 2.4.3 404 response (not found)
+  - [x] 2.4.4 Example request/response
+- [x] 2.5 Document GET /workflows/{id}/result endpoint
+  - [x] 2.5.1 Path parameter (id: UUID)
+  - [x] 2.5.2 Success response (WorkflowResult)
+  - [x] 2.5.3 404 response (not found)
+  - [x] 2.5.4 Example request/response
 
 ## 3. Define Schemas
-- [ ] 3.1 WorkflowDefinition schema
-- [ ] 3.2 Workflow schema
-- [ ] 3.3 WorkflowResult schema
-- [ ] 3.4 Task schema
-- [ ] 3.5 TaskDefinition schema
-- [ ] 3.6 TaskResult schema
-- [ ] 3.7 Status enum (Pending, Running, Completed, Failed)
-- [ ] 3.8 Error response schema
+- [x] 3.1 WorkflowDefinition schema
+- [x] 3.2 Workflow schema
+- [x] 3.3 WorkflowResult schema
+- [x] 3.4 Task schema
+- [x] 3.5 TaskDefinition schema
+- [x] 3.6 TaskResult schema
+- [x] 3.7 Status enum (Pending, Running, Completed, Failed)
+- [x] 3.8 Error response schema
 
 ## 4. Validation & Testing
-- [ ] 4.1 Install OpenAPI validator (e.g., swagger-cli or openapi-generator)
-- [ ] 4.2 Validate OpenAPI spec locally
+- [x] 4.1 Install OpenAPI validator (e.g., swagger-cli or openapi-generator)
+- [x] 4.2 Validate OpenAPI spec locally
 - [ ] 4.3 Test example requests against actual API
 - [ ] 4.4 Verify schemas match actual data structures
 
@@ -53,8 +53,8 @@
 - [ ] 6.3 Ensure validation runs on PR changes
 
 ## 7. Documentation
-- [ ] 7.1 Update scala/cassandra-best-practise/README.md
-- [ ] 7.2 Add API documentation section
-- [ ] 7.3 Include link to OpenAPI spec
-- [ ] 7.4 Add usage examples
+- [x] 7.1 Update scala/cassandra-best-practise/README.md
+- [x] 7.2 Add API documentation section
+- [x] 7.3 Include link to OpenAPI spec
+- [x] 7.4 Add usage examples
 

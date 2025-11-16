@@ -1,0 +1,483 @@
+openapi: 3.1.0
+info:
+  title: Workflow Management API
+  version: 1.0.0
+  description: |
+    REST API for managing durable workflows and tasks. This API allows you to create workflows,
+    query their status, and retrieve execution results.
+    
+    Built with http4s, Cats Effect, and jsoniter-scala.
+  contact:
+    name: API Support
+    email: support@example.com
+  license:
+    name: Apache 2.0
+    url: https://www.apache.org/licenses/LICENSE-2.0.html
+
+servers:
+  - url: http://localhost:8080
+    description: Local development server
+  - url: http://0.0.0.0:8080
+    description: Docker container server
+
+tags:
+  - name: workflows
+    description: Workflow creation and management operations
+
+paths:
+  /workflows:
+    post:
+      summary: Create a new workflow
+      description: |
+        Creates and starts a new workflow based on the provided workflow definition.
+        The workflow will be executed asynchronously by the workflow engine.
+      operationId: createWorkflow
+      tags:
+        - workflows
+      parameters:
+        - name: variables
+          in: query
+          description: Optional workflow variables as JSON-encoded map
+          required: false
+          schema:
+            type: string
+            example: '{"env":"production","timeout":30}'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WorkflowDefinition'
+            examples:
+              simpleWorkflow:
+                summary: Simple two-task workflow
+                value:
+                  name: "Data Processing Pipeline"
+                  taskDefinitions:
+                    - name: "Extract Data"
+                      taskType: "extract"
+                      parameterTypes: {}
+                      maxRetries: 3
+                      dependencies: []
+                    - name: "Transform Data"
+                      taskType: "transform"
+                      parameterTypes: {}
+                      maxRetries: 2
+                      dependencies: ["Extract Data"]
+      responses:
+        '200':
+          description: Workflow created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Workflow'
+              examples:
+                createdWorkflow:
+                  summary: Successfully created workflow
+                  value:
+                    id: "550e8400-e29b-41d4-a716-446655440000"
+                    name: "Data Processing Pipeline"
+                    status: "Pending"
+                    createdAt: 1699564800000
+                    updatedAt: 1699564800000
+                    tasks:
+                      - id: "660e8400-e29b-41d4-a716-446655440001"
+                        name: "Extract Data"
+                        status: "Pending"
+                        createdAt: 1699564800000
+                        updatedAt: 1699564800000
+                        taskType: "extract"
+                        parameters: {}
+                        retries: 0
+                        maxRetries: 3
+                        dependencies: []
+                      - id: "770e8400-e29b-41d4-a716-446655440002"
+                        name: "Transform Data"
+                        status: "Pending"
+                        createdAt: 1699564800000
+                        updatedAt: 1699564800000
+                        taskType: "transform"
+                        parameters: {}
+                        retries: 0
+                        maxRetries: 2
+                        dependencies: ["660e8400-e29b-41d4-a716-446655440001"]
+                    variables: {}
+        '400':
+          description: Invalid workflow definition
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                invalidDefinition:
+                  summary: Invalid workflow definition
+                  value:
+                    error: "Invalid workflow definition: missing required field 'name'"
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                serverError:
+                  summary: Server error
+                  value:
+                    error: "Failed to create workflow: database connection error"
+
+  /workflows/{id}:
+    get:
+      summary: Get workflow by ID
+      description: Retrieves the current state of a workflow including all tasks and their statuses
+      operationId: getWorkflow
+      tags:
+        - workflows
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Unique identifier of the workflow (UUID)
+          schema:
+            type: string
+            format: uuid
+          example: "550e8400-e29b-41d4-a716-446655440000"
+      responses:
+        '200':
+          description: Workflow found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Workflow'
+              examples:
+                runningWorkflow:
+                  summary: Workflow in progress
+                  value:
+                    id: "550e8400-e29b-41d4-a716-446655440000"
+                    name: "Data Processing Pipeline"
+                    status: "Running"
+                    createdAt: 1699564800000
+                    updatedAt: 1699564850000
+                    tasks:
+                      - id: "660e8400-e29b-41d4-a716-446655440001"
+                        name: "Extract Data"
+                        status: "Completed"
+                        createdAt: 1699564800000
+                        updatedAt: 1699564830000
+                        taskType: "extract"
+                        parameters: {}
+                        retries: 0
+                        maxRetries: 3
+                        dependencies: []
+                      - id: "770e8400-e29b-41d4-a716-446655440002"
+                        name: "Transform Data"
+                        status: "Running"
+                        createdAt: 1699564800000
+                        updatedAt: 1699564850000
+                        taskType: "transform"
+                        parameters: {}
+                        retries: 0
+                        maxRetries: 2
+                        dependencies: ["660e8400-e29b-41d4-a716-446655440001"]
+                    variables: {}
+        '404':
+          description: Workflow not found
+          content:
+            text/plain:
+              schema:
+                type: string
+              example: "Workflow 550e8400-e29b-41d4-a716-446655440000 not found"
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /workflows/{id}/result:
+    get:
+      summary: Get workflow execution result
+      description: Retrieves the final execution result of a completed workflow including all task outputs
+      operationId: getWorkflowResult
+      tags:
+        - workflows
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Unique identifier of the workflow (UUID)
+          schema:
+            type: string
+            format: uuid
+          example: "550e8400-e29b-41d4-a716-446655440000"
+      responses:
+        '200':
+          description: Workflow result found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkflowResult'
+              examples:
+                successfulResult:
+                  summary: Successful workflow execution
+                  value:
+                    workflowId: "550e8400-e29b-41d4-a716-446655440000"
+                    taskResults:
+                      "660e8400-e29b-41d4-a716-446655440001":
+                        taskId: "660e8400-e29b-41d4-a716-446655440001"
+                        output: {"records": 1000, "status": "success"}
+                        error: null
+                      "770e8400-e29b-41d4-a716-446655440002":
+                        taskId: "770e8400-e29b-41d4-a716-446655440002"
+                        output: {"transformedRecords": 950, "status": "success"}
+                        error: null
+                    error: null
+                failedResult:
+                  summary: Failed workflow execution
+                  value:
+                    workflowId: "550e8400-e29b-41d4-a716-446655440000"
+                    taskResults:
+                      "660e8400-e29b-41d4-a716-446655440001":
+                        taskId: "660e8400-e29b-41d4-a716-446655440001"
+                        output: null
+                        error: "Connection timeout after 30 seconds"
+                    error: "Workflow failed: task 'Extract Data' failed after 3 retries"
+        '404':
+          description: Workflow result not found
+          content:
+            text/plain:
+              schema:
+                type: string
+              example: "Workflow result for 550e8400-e29b-41d4-a716-446655440000 not found"
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  schemas:
+    WorkflowDefinition:
+      type: object
+      required:
+        - name
+        - taskDefinitions
+      properties:
+        name:
+          type: string
+          description: Human-readable name for the workflow
+          example: "Data Processing Pipeline"
+        taskDefinitions:
+          type: array
+          description: List of task definitions that make up the workflow
+          items:
+            $ref: '#/components/schemas/TaskDefinition'
+          minItems: 1
+
+    TaskDefinition:
+      type: object
+      required:
+        - name
+        - taskType
+        - parameterTypes
+      properties:
+        name:
+          type: string
+          description: Human-readable name for the task
+          example: "Extract Data"
+        taskType:
+          type: string
+          description: Type identifier for the task executor
+          example: "extract"
+        parameterTypes:
+          type: object
+          description: Map of parameter names to their Java class types
+          additionalProperties: true
+          example: {}
+        maxRetries:
+          type: integer
+          description: Maximum number of retry attempts for failed tasks
+          default: 3
+          minimum: 0
+          maximum: 10
+          example: 3
+        dependencies:
+          type: array
+          description: Names of tasks that must complete before this task can start
+          items:
+            type: string
+          default: []
+          example: ["Extract Data"]
+
+    Workflow:
+      type: object
+      required:
+        - id
+        - name
+        - status
+        - createdAt
+        - updatedAt
+        - tasks
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Unique identifier for the workflow
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        name:
+          type: string
+          description: Human-readable name for the workflow
+          example: "Data Processing Pipeline"
+        status:
+          $ref: '#/components/schemas/Status'
+        createdAt:
+          type: integer
+          format: int64
+          description: Unix timestamp (milliseconds) when the workflow was created
+          example: 1699564800000
+        updatedAt:
+          type: integer
+          format: int64
+          description: Unix timestamp (milliseconds) when the workflow was last updated
+          example: 1699564850000
+        tasks:
+          type: array
+          description: List of tasks in the workflow
+          items:
+            $ref: '#/components/schemas/Task'
+        variables:
+          type: object
+          description: Workflow-level variables
+          additionalProperties: true
+          default: {}
+          example: {"env": "production", "timeout": 30}
+
+    Task:
+      type: object
+      required:
+        - id
+        - name
+        - status
+        - createdAt
+        - updatedAt
+        - taskType
+        - parameters
+        - retries
+        - maxRetries
+        - dependencies
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Unique identifier for the task
+          example: "660e8400-e29b-41d4-a716-446655440001"
+        name:
+          type: string
+          description: Human-readable name for the task
+          example: "Extract Data"
+        status:
+          $ref: '#/components/schemas/Status'
+        createdAt:
+          type: integer
+          format: int64
+          description: Unix timestamp (milliseconds) when the task was created
+          example: 1699564800000
+        updatedAt:
+          type: integer
+          format: int64
+          description: Unix timestamp (milliseconds) when the task was last updated
+          example: 1699564830000
+        taskType:
+          type: string
+          description: Type identifier for the task executor
+          example: "extract"
+        parameters:
+          type: object
+          description: Task-specific parameters
+          additionalProperties: true
+          example: {"source": "database", "table": "users"}
+        retries:
+          type: integer
+          description: Number of times this task has been retried
+          minimum: 0
+          example: 0
+        maxRetries:
+          type: integer
+          description: Maximum number of retry attempts
+          minimum: 0
+          maximum: 10
+          example: 3
+        dependencies:
+          type: array
+          description: UUIDs of tasks that must complete before this task can start
+          items:
+            type: string
+            format: uuid
+          default: []
+          example: []
+
+    WorkflowResult:
+      type: object
+      required:
+        - workflowId
+        - taskResults
+      properties:
+        workflowId:
+          type: string
+          format: uuid
+          description: Unique identifier of the workflow
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        taskResults:
+          type: object
+          description: Map of task IDs to their execution results
+          additionalProperties:
+            $ref: '#/components/schemas/TaskResult'
+          example:
+            "660e8400-e29b-41d4-a716-446655440001":
+              taskId: "660e8400-e29b-41d4-a716-446655440001"
+              output: {"records": 1000}
+              error: null
+        error:
+          type: [string, "null"]
+          description: Error message if the workflow failed
+          example: null
+
+    TaskResult:
+      type: object
+      required:
+        - taskId
+        - output
+      properties:
+        taskId:
+          type: string
+          format: uuid
+          description: Unique identifier of the task
+          example: "660e8400-e29b-41d4-a716-446655440001"
+        output:
+          description: Task execution output (can be any JSON value)
+          example: {"records": 1000, "status": "success"}
+        error:
+          type: [string, "null"]
+          description: Error message if the task failed
+          example: null
+
+    Status:
+      type: string
+      enum:
+        - Pending
+        - Running
+        - Completed
+        - Failed
+      description: Execution status of a workflow or task
+      example: "Running"
+
+    ErrorResponse:
+      type: object
+      required:
+        - error
+      properties:
+        error:
+          type: string
+          description: Human-readable error message
+          example: "Workflow 550e8400-e29b-41d4-a716-446655440000 not found"
+
