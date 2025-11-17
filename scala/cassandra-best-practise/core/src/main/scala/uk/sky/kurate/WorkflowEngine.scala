@@ -20,16 +20,22 @@ class WorkflowEngine(persistenceLayer: PersistenceLayer)(implicit
       variables = variables
     )
 
-    for {
+    val result = for {
       savedWorkflow <- persistenceLayer.saveWorkflow(workflow)
+      // Save all tasks individually
+      _ <- Future.sequence(savedWorkflow.tasks.map(persistenceLayer.saveTask))
       _ <- persistenceLayer.saveTransition(
         Transition(savedWorkflow.id, Pending, Running)
       )
       updatedWorkflow <- persistenceLayer.updateWorkflow(
         savedWorkflow.copy(status = Running)
       )
-      _ <- scheduleNextTasks(updatedWorkflow)
     } yield updatedWorkflow
+
+    // Schedule tasks asynchronously after returning the workflow
+    result.foreach(w => scheduleNextTasks(w))
+
+    result
   }
 
   private def createTask(taskDef: TaskDefinition): Task = {

@@ -24,6 +24,8 @@ object ServerComponent extends IOApp {
   implicit val statusCodec: JsonValueCodec[core.Status] = JsonCodecMaker.make
   implicit val taskCodec: JsonValueCodec[Task] = JsonCodecMaker.make
   implicit val workflowCodec: JsonValueCodec[Workflow] = JsonCodecMaker.make
+  implicit val workflowListCodec: JsonValueCodec[List[Workflow]] =
+    JsonCodecMaker.make
   implicit val taskResultCodec: JsonValueCodec[TaskResult] = JsonCodecMaker.make
   implicit val workflowResultCodec: JsonValueCodec[WorkflowResult] =
     JsonCodecMaker.make
@@ -93,6 +95,12 @@ object ServerComponent extends IOApp {
             )
           )
           resp <- Ok(writeToString(workflow))
+        } yield resp
+
+      case GET -> Root / "workflows" =>
+        for {
+          workflows <- IO.fromFuture(IO(persistenceLayer.listWorkflows()))
+          resp <- Ok(writeToString(workflows))
         } yield resp
 
       case GET -> Root / "workflows" / UUIDVar(id) =>

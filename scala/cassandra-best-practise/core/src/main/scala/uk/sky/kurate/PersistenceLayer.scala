@@ -5,11 +5,11 @@ import core._
 import scala.concurrent.Future
 import scala.collection.mutable
 
-
 // Persistence trait defining the operations
 trait PersistenceLayer {
   def saveWorkflow(workflow: Workflow): Future[Workflow]
   def getWorkflow(id: ID): Future[Option[Workflow]]
+  def listWorkflows(): Future[List[Workflow]]
   def updateWorkflow(workflow: Workflow): Future[Workflow]
   def deleteWorkflow(id: ID): Future[Boolean]
 
@@ -47,6 +47,10 @@ class InMemoryPersistence extends PersistenceLayer {
     workflows.get(id)
   }
 
+  override def listWorkflows(): Future[List[Workflow]] = Future {
+    workflows.values.toList
+  }
+
   override def updateWorkflow(workflow: Workflow): Future[Workflow] = Future {
     workflows.update(workflow.id, workflow)
     workflow
@@ -67,6 +71,17 @@ class InMemoryPersistence extends PersistenceLayer {
 
   override def updateTask(task: Task): Future[Task] = Future {
     tasks.update(task.id, task)
+
+    // Also update the task in any workflow that contains it
+    workflows.foreach { case (workflowId, workflow) =>
+      val updatedTasks = workflow.tasks.map { t =>
+        if (t.id == task.id) task else t
+      }
+      if (updatedTasks != workflow.tasks) {
+        workflows.update(workflowId, workflow.copy(tasks = updatedTasks))
+      }
+    }
+
     task
   }
 
@@ -74,12 +89,16 @@ class InMemoryPersistence extends PersistenceLayer {
     tasks.remove(id).isDefined
   }
 
-  override def saveWorkflowResult(result: WorkflowResult): Future[WorkflowResult] = Future {
+  override def saveWorkflowResult(
+      result: WorkflowResult
+  ): Future[WorkflowResult] = Future {
     workflowResults.put(result.workflowId, result)
     result
   }
 
-  override def getWorkflowResult(workflowId: ID): Future[Option[WorkflowResult]] = Future {
+  override def getWorkflowResult(
+      workflowId: ID
+  ): Future[Option[WorkflowResult]] = Future {
     workflowResults.get(workflowId)
   }
 
@@ -92,11 +111,13 @@ class InMemoryPersistence extends PersistenceLayer {
     taskResults.get(taskId)
   }
 
-  override def saveTransition(transition: Transition): Future[Transition] = Future {
-    val currentTransitions = transitions.getOrElse(transition.entityId, List.empty)
-    transitions.update(transition.entityId, transition :: currentTransitions)
-    transition
-  }
+  override def saveTransition(transition: Transition): Future[Transition] =
+    Future {
+      val currentTransitions =
+        transitions.getOrElse(transition.entityId, List.empty)
+      transitions.update(transition.entityId, transition :: currentTransitions)
+      transition
+    }
 
   override def getTransitions(entityId: ID): Future[List[Transition]] = Future {
     transitions.getOrElse(entityId, List.empty)
