@@ -2,6 +2,12 @@
 
 A durable workflow execution engine built with Scala, Cats Effect, http4s, and Cassandra.
 
+## 📚 Documentation
+
+- **[Architecture Guide](./ARCHITECTURE.md)** - Detailed system architecture, components, and design patterns
+- **[Use Cases & Examples](./USE_CASES.md)** - Real-world use cases with complete workflow definitions
+- **[Enhancement Guide](./ENHANCEMENTS.md)** - Roadmap for production-ready features and scalability
+
 ## Overview
 
 This project demonstrates best practices for building a workflow orchestration system with:
@@ -12,8 +18,9 @@ This project demonstrates best practices for building a workflow orchestration s
 - **REST API**: http4s-based API for workflow management
 - **Functional Programming**: Cats Effect for pure functional effects
 - **High-Performance JSON**: jsoniter-scala for fast serialization
+- **Interactive Documentation**: Swagger UI for API exploration
 
-## Architecture
+## Quick Architecture Overview
 
 ```
 ┌─────────────────┐
@@ -35,6 +42,8 @@ This project demonstrates best practices for building a workflow orchestration s
 │PersistenceLayer │  (In-Memory / Cassandra)
 └─────────────────┘
 ```
+
+For detailed architecture diagrams and component descriptions, see [ARCHITECTURE.md](./ARCHITECTURE.md).
 
 ## API Documentation
 
@@ -72,40 +81,32 @@ With Swagger UI, you can:
 
    Navigate to http://localhost:8080/api-docs in your browser to explore the API interactively.
 
-2. **Create a workflow:**
+3. **Create a workflow** (using example):
    ```bash
    curl -X POST http://localhost:8080/workflows \
      -H "Content-Type: application/json" \
-     -d '{
-       "name": "Data Processing Pipeline",
-       "taskDefinitions": [
-         {
-           "name": "Extract Data",
-           "taskType": "extract",
-           "parameterTypes": {},
-           "maxRetries": 3,
-           "dependencies": []
-         },
-         {
-           "name": "Transform Data",
-           "taskType": "transform",
-           "parameterTypes": {},
-           "maxRetries": 2,
-           "dependencies": ["Extract Data"]
-         }
-       ]
-     }'
+     -d @examples/etl-pipeline.json
    ```
 
-3. **Get workflow status:**
+4. **Get workflow status:**
    ```bash
    curl http://localhost:8080/workflows/{workflow-id}
    ```
 
-4. **Get workflow result:**
+5. **Get workflow result:**
    ```bash
    curl http://localhost:8080/workflows/{workflow-id}/result
    ```
+
+### Example Workflows
+
+Pre-built workflow examples are available in the `examples/` directory:
+
+- **[etl-pipeline.json](./examples/etl-pipeline.json)** - Customer data ETL pipeline (5 tasks)
+- **[video-processing.json](./examples/video-processing.json)** - Video transcoding pipeline (8 tasks, parallel execution)
+- **[ml-training.json](./examples/ml-training.json)** - Machine learning model training (10 tasks)
+
+See [USE_CASES.md](./USE_CASES.md) for detailed explanations and more examples.
 
 ### API Endpoints
 
@@ -114,6 +115,7 @@ With Swagger UI, you can:
 | Method | Endpoint                      | Description                          |
 |--------|-------------------------------|--------------------------------------|
 | POST   | `/workflows`                  | Create and start a new workflow      |
+| GET    | `/workflows`                  | List all workflows                   |
 | GET    | `/workflows/{id}`             | Get workflow status and tasks        |
 | GET    | `/workflows/{id}/result`      | Get workflow execution result        |
 
@@ -125,6 +127,18 @@ With Swagger UI, you can:
 | GET    | `/api-docs/openapi.yaml`      | OpenAPI 3.1 specification (YAML)     |
 
 For detailed request/response schemas, examples, and error codes, see the [OpenAPI specification](./openapi.yaml) or browse the [interactive documentation](http://localhost:8080/api-docs).
+
+### Testing Scripts
+
+Two helper scripts are provided for testing:
+
+```bash
+# Comprehensive workflow test (creates workflow, checks status, gets results)
+./test-workflow.sh
+
+# Basic API endpoint test
+./test-api.sh
+```
 
 ## Data Models
 
@@ -185,19 +199,32 @@ Individual task execution result:
 ## Development
 
 ### Build
+
 ```bash
 sbt compile
 ```
 
 ### Run
+
 ```bash
 sbt "project core" run
 ```
 
 ### Test
+
 ```bash
 sbt test
 ```
+
+## Production Enhancements
+
+This is a development/demonstration version. For production use, see [ENHANCEMENTS.md](./ENHANCEMENTS.md) for:
+
+- ✅ Cassandra persistence (durability)
+- ✅ Distributed task execution (scalability)
+- ✅ Advanced retry strategies (resilience)
+- ✅ Monitoring & observability (metrics, logging, tracing)
+- ✅ Advanced features (conditional branching, scheduling, versioning)
 
 ## OpenAPI Validation
 
@@ -210,6 +237,14 @@ python3 -c "import yaml; yaml.safe_load(open('openapi.yaml')); print('✅ Valid'
 # Using npx (requires Node.js)
 npx @apidevtools/swagger-cli validate openapi.yaml
 ```
+
+## Contributing
+
+Contributions are welcome! Please see the documentation guides:
+
+- [ARCHITECTURE.md](./ARCHITECTURE.md) - Understand the system design
+- [USE_CASES.md](./USE_CASES.md) - Learn from examples
+- [ENHANCEMENTS.md](./ENHANCEMENTS.md) - See the roadmap
 
 ## License
 

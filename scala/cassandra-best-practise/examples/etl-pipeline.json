@@ -1,0 +1,56 @@
+{
+  "name": "Customer Data ETL Pipeline",
+  "taskDefinitions": [
+    {
+      "name": "Extract from Database",
+      "taskType": "database_extract",
+      "parameterTypes": {
+        "source": "postgresql",
+        "table": "customers",
+        "query": "SELECT * FROM customers WHERE updated_at > ?"
+      },
+      "maxRetries": 3,
+      "dependencies": []
+    },
+    {
+      "name": "Validate Data Quality",
+      "taskType": "data_validation",
+      "parameterTypes": {
+        "rules": "email_format,phone_format,required_fields"
+      },
+      "maxRetries": 2,
+      "dependencies": ["Extract from Database"]
+    },
+    {
+      "name": "Transform to Standard Format",
+      "taskType": "data_transform",
+      "parameterTypes": {
+        "format": "json",
+        "schema": "customer_v2"
+      },
+      "maxRetries": 2,
+      "dependencies": ["Validate Data Quality"]
+    },
+    {
+      "name": "Load to Data Warehouse",
+      "taskType": "database_load",
+      "parameterTypes": {
+        "destination": "snowflake",
+        "table": "dim_customers"
+      },
+      "maxRetries": 5,
+      "dependencies": ["Transform to Standard Format"]
+    },
+    {
+      "name": "Update Metadata",
+      "taskType": "metadata_update",
+      "parameterTypes": {
+        "catalog": "data_catalog",
+        "lineage": "true"
+      },
+      "maxRetries": 2,
+      "dependencies": ["Load to Data Warehouse"]
+    }
+  ]
+}
+

@@ -1,0 +1,111 @@
+{
+  "name": "ML Model Training Pipeline",
+  "taskDefinitions": [
+    {
+      "name": "Fetch Training Data",
+      "taskType": "data_fetch",
+      "parameterTypes": {
+        "source": "feature_store",
+        "dataset": "customer_churn_v3",
+        "version": "latest"
+      },
+      "maxRetries": 3,
+      "dependencies": []
+    },
+    {
+      "name": "Data Preprocessing",
+      "taskType": "data_preprocessing",
+      "parameterTypes": {
+        "normalization": "standard_scaler",
+        "encoding": "one_hot",
+        "missing_values": "mean_imputation"
+      },
+      "maxRetries": 2,
+      "dependencies": ["Fetch Training Data"]
+    },
+    {
+      "name": "Feature Engineering",
+      "taskType": "feature_engineering",
+      "parameterTypes": {
+        "features": "interaction_terms,polynomial_features",
+        "degree": "2"
+      },
+      "maxRetries": 2,
+      "dependencies": ["Data Preprocessing"]
+    },
+    {
+      "name": "Train XGBoost Model",
+      "taskType": "model_training",
+      "parameterTypes": {
+        "algorithm": "xgboost",
+        "hyperparameters": "config_v1",
+        "cv_folds": "5"
+      },
+      "maxRetries": 1,
+      "dependencies": ["Feature Engineering"]
+    },
+    {
+      "name": "Train Random Forest Model",
+      "taskType": "model_training",
+      "parameterTypes": {
+        "algorithm": "random_forest",
+        "hyperparameters": "config_v1",
+        "cv_folds": "5"
+      },
+      "maxRetries": 1,
+      "dependencies": ["Feature Engineering"]
+    },
+    {
+      "name": "Evaluate XGBoost",
+      "taskType": "model_evaluation",
+      "parameterTypes": {
+        "metrics": "accuracy,precision,recall,f1,auc",
+        "test_split": "0.2"
+      },
+      "maxRetries": 2,
+      "dependencies": ["Train XGBoost Model"]
+    },
+    {
+      "name": "Evaluate Random Forest",
+      "taskType": "model_evaluation",
+      "parameterTypes": {
+        "metrics": "accuracy,precision,recall,f1,auc",
+        "test_split": "0.2"
+      },
+      "maxRetries": 2,
+      "dependencies": ["Train Random Forest Model"]
+    },
+    {
+      "name": "Select Best Model",
+      "taskType": "model_selection",
+      "parameterTypes": {
+        "criterion": "f1_score",
+        "threshold": "0.85"
+      },
+      "maxRetries": 2,
+      "dependencies": ["Evaluate XGBoost", "Evaluate Random Forest"]
+    },
+    {
+      "name": "Register Model",
+      "taskType": "model_registry",
+      "parameterTypes": {
+        "registry": "mlflow",
+        "stage": "staging",
+        "tags": "version=v3,team=data-science"
+      },
+      "maxRetries": 3,
+      "dependencies": ["Select Best Model"]
+    },
+    {
+      "name": "Generate Model Report",
+      "taskType": "report_generation",
+      "parameterTypes": {
+        "format": "html",
+        "include": "metrics,feature_importance,confusion_matrix"
+      },
+      "maxRetries": 2,
+      "dependencies": ["Select Best Model"]
+    }
+  ]
+}
+

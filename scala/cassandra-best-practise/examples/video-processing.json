@@ -1,0 +1,95 @@
+{
+  "name": "Video Processing Pipeline",
+  "taskDefinitions": [
+    {
+      "name": "Download Video",
+      "taskType": "s3_download",
+      "parameterTypes": {
+        "bucket": "uploads",
+        "key": "video_id"
+      },
+      "maxRetries": 3,
+      "dependencies": []
+    },
+    {
+      "name": "Extract Metadata",
+      "taskType": "ffprobe",
+      "parameterTypes": {
+        "format": "json"
+      },
+      "maxRetries": 2,
+      "dependencies": ["Download Video"]
+    },
+    {
+      "name": "Transcode to 1080p",
+      "taskType": "ffmpeg_transcode",
+      "parameterTypes": {
+        "resolution": "1920x1080",
+        "codec": "h264",
+        "bitrate": "5000k"
+      },
+      "maxRetries": 2,
+      "dependencies": ["Download Video"]
+    },
+    {
+      "name": "Transcode to 720p",
+      "taskType": "ffmpeg_transcode",
+      "parameterTypes": {
+        "resolution": "1280x720",
+        "codec": "h264",
+        "bitrate": "2500k"
+      },
+      "maxRetries": 2,
+      "dependencies": ["Download Video"]
+    },
+    {
+      "name": "Transcode to 480p",
+      "taskType": "ffmpeg_transcode",
+      "parameterTypes": {
+        "resolution": "854x480",
+        "codec": "h264",
+        "bitrate": "1000k"
+      },
+      "maxRetries": 2,
+      "dependencies": ["Download Video"]
+    },
+    {
+      "name": "Generate Thumbnail",
+      "taskType": "thumbnail_extract",
+      "parameterTypes": {
+        "timestamp": "00:00:05",
+        "format": "jpg",
+        "width": "1280"
+      },
+      "maxRetries": 2,
+      "dependencies": ["Download Video"]
+    },
+    {
+      "name": "Upload Processed Files",
+      "taskType": "s3_upload",
+      "parameterTypes": {
+        "bucket": "processed-videos",
+        "acl": "public-read"
+      },
+      "maxRetries": 5,
+      "dependencies": [
+        "Transcode to 1080p",
+        "Transcode to 720p",
+        "Transcode to 480p",
+        "Generate Thumbnail",
+        "Extract Metadata"
+      ]
+    },
+    {
+      "name": "Update CDN Cache",
+      "taskType": "cdn_invalidate",
+      "parameterTypes": {
+        "provider": "cloudfront",
+        "paths": "/videos/*"
+      },
+      "maxRetries": 3,
+      "dependencies": ["Upload Processed Files"]
+    }
+  ]
+}
+
