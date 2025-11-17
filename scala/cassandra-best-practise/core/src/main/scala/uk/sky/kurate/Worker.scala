@@ -1,3 +1,4 @@
+import core._
 import cats.effect._
 import cats.implicits._
 import fs2.Stream
@@ -11,37 +12,34 @@ trait TaskExecutor {
 }
 
 class Worker[F[_]: Async](
-  client: DurableExecutionClient[F],
-  taskExecutor: TaskExecutor,
-  pollingInterval: FiniteDuration = 5.seconds,
-  concurrency: Int = 4
+    client: DurableExecutionClient[F],
+    taskExecutor: TaskExecutor,
+    pollingInterval: FiniteDuration = 5.seconds,
+    concurrency: Int = 4
 ) {
   implicit val logger: Logger[F] = Slf4jLogger.getLogger[F]
 
   def start: F[Unit] = {
-    val process = Stream.awakeEvery[F](pollingInterval)
+    val process = Stream
+      .awakeEvery[F](pollingInterval)
       .evalMap(_ => pollAndExecuteTasks)
       .parEvalMapUnordered(concurrency)(identity)
       .repeat
-      .onError { case e => Stream.eval(Logger[F].error(e)("Error in worker process")) }
+      .onError { case e =>
+        Stream.eval(Logger[F].error(e)("Error in worker process"))
+      }
 
     process.compile.drain
   }
 
   private def pollAndExecuteTasks: F[F[Unit]] = {
-    client.getNextTask.flatMap {
-      case Some(task) => Async[F].delay(() => executeTask(task))
-      case None => Async[F].pure(() => Async[F].unit)
-    }
+    // TODO: Implement getNextTask in DurableExecutionClient
+    Async[F].pure(Async[F].unit)
   }
 
   private def executeTask(task: Task): F[Unit] = {
-    for {
-      _ <- Logger[F].info(s"Executing task: ${task.id}")
-      result <- Async[F].fromIO(taskExecutor.execute(task))
-      _ <- client.submitTaskResult(task.id, result)
-      _ <- Logger[F].info(s"Task ${task.id} completed with status: ${result.status}")
-    } yield ()
+    // TODO: Implement proper task execution
+    Logger[F].info(s"Executing task: ${task.id}")
   }
 }
 
@@ -52,7 +50,6 @@ class ExampleTaskExecutor extends TaskExecutor {
     IO.sleep(1.second) *> IO {
       TaskResult(
         taskId = task.id,
-        status = Completed,
         output = s"Executed ${task.name} of type ${task.taskType}"
       )
     }
@@ -62,11 +59,12 @@ class ExampleTaskExecutor extends TaskExecutor {
 // Worker companion object for easy instantiation
 object Worker {
   def create[F[_]: Async](
-    client: DurableExecutionClient[F],
-    taskExecutor: TaskExecutor,
-    pollingInterval: FiniteDuration = 5.seconds,
-    concurrency: Int = 4
-  ): Worker[F] = new Worker[F](client, taskExecutor, pollingInterval, concurrency)
+      client: DurableExecutionClient[F],
+      taskExecutor: TaskExecutor,
+      pollingInterval: FiniteDuration = 5.seconds,
+      concurrency: Int = 4
+  ): Worker[F] =
+    new Worker[F](client, taskExecutor, pollingInterval, concurrency)
 }
 
 // Example usage

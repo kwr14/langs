@@ -3,10 +3,16 @@ package uk.sky.kurate
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.{Failure, Success}
 import core._
+import java.util.UUID
 
-class WorkflowEngine(persistenceLayer: PersistenceLayer)(implicit ec: ExecutionContext) {
+class WorkflowEngine(persistenceLayer: PersistenceLayer)(implicit
+    ec: ExecutionContext
+) {
 
-  def startWorkflow(workflowDef: WorkflowDefinition, variables: Map[String, Any]): Future[Workflow] = {
+  def startWorkflow(
+      workflowDef: WorkflowDefinition,
+      variables: Map[String, String]
+  ): Future[Workflow] = {
     val tasks = workflowDef.taskDefinitions.map(createTask)
     val workflow = Workflow(
       name = workflowDef.name,
@@ -16,8 +22,12 @@ class WorkflowEngine(persistenceLayer: PersistenceLayer)(implicit ec: ExecutionC
 
     for {
       savedWorkflow <- persistenceLayer.saveWorkflow(workflow)
-      _ <- persistenceLayer.saveTransition(Transition(savedWorkflow.id, Pending, Running))
-      updatedWorkflow <- persistenceLayer.updateWorkflow(savedWorkflow.copy(status = Running))
+      _ <- persistenceLayer.saveTransition(
+        Transition(savedWorkflow.id, Pending, Running)
+      )
+      updatedWorkflow <- persistenceLayer.updateWorkflow(
+        savedWorkflow.copy(status = Running)
+      )
       _ <- scheduleNextTasks(updatedWorkflow)
     } yield updatedWorkflow
   }
@@ -28,7 +38,8 @@ class WorkflowEngine(persistenceLayer: PersistenceLayer)(implicit ec: ExecutionC
       taskType = taskDef.taskType,
       parameters = Map.empty, // To be filled when the task is ready to run
       maxRetries = taskDef.maxRetries,
-      dependencies = taskDef.dependencies.map(_ => UUID.randomUUID()) // Placeholder IDs
+      dependencies =
+        taskDef.dependencies.map(_ => UUID.randomUUID()) // Placeholder IDs
     )
   }
 
@@ -46,9 +57,14 @@ class WorkflowEngine(persistenceLayer: PersistenceLayer)(implicit ec: ExecutionC
 
   private def executeTask(task: Task, workflow: Workflow): Future[Unit] = {
     for {
-      _ <- persistenceLayer.saveTransition(Transition(task.id, task.status, Running))
+      _ <- persistenceLayer.saveTransition(
+        Transition(task.id, task.status, Running)
+      )
       updatedTask <- persistenceLayer.updateTask(task.copy(status = Running))
-      result <- runTask(updatedTask, workflow) // This would call out to your task execution system
+      result <- runTask(
+        updatedTask,
+        workflow
+      ) // This would call out to your task execution system
       _ <- handleTaskResult(result, workflow)
     } yield ()
   }
@@ -62,38 +78,55 @@ class WorkflowEngine(persistenceLayer: PersistenceLayer)(implicit ec: ExecutionC
     }
   }
 
-  private def handleTaskResult(result: TaskResult, workflow: Workflow): Future[Unit] = {
+  private def handleTaskResult(
+      result: TaskResult,
+      workflow: Workflow
+  ): Future[Unit] = {
     for {
       _ <- persistenceLayer.saveTaskResult(result)
       task <- persistenceLayer.getTask(result.taskId).map(_.get)
       updatedTask = task.copy(status = Completed)
-      _ <- persistenceLayer.saveTransition(Transition(task.id, Running, Completed))
+      _ <- persistenceLayer.saveTransition(
+        Transition(task.id, Running, Completed)
+      )
       _ <- persistenceLayer.updateTask(updatedTask)
       updatedWorkflow <- updateWorkflowStatus(workflow)
-      _ <- if (updatedWorkflow.status == Completed) completeWorkflow(updatedWorkflow)
-           else scheduleNextTasks(updatedWorkflow)
+      _ <-
+        if (updatedWorkflow.status == Completed)
+          completeWorkflow(updatedWorkflow)
+        else scheduleNextTasks(updatedWorkflow)
     } yield ()
   }
 
   private def updateWorkflowStatus(workflow: Workflow): Future[Workflow] = {
     persistenceLayer.getWorkflow(workflow.id).flatMap {
       case Some(currentWorkflow) =>
-        val allTasksCompleted = currentWorkflow.tasks.forall(_.status == Completed)
+        val allTasksCompleted =
+          currentWorkflow.tasks.forall(_.status == Completed)
         if (allTasksCompleted && currentWorkflow.status != Completed) {
           val updatedWorkflow = currentWorkflow.copy(status = Completed)
-          persistenceLayer.saveTransition(Transition(workflow.id, currentWorkflow.status, Completed))
+          persistenceLayer
+            .saveTransition(
+              Transition(workflow.id, currentWorkflow.status, Completed)
+            )
             .flatMap(_ => persistenceLayer.updateWorkflow(updatedWorkflow))
         } else {
           Future.successful(currentWorkflow)
         }
-      case None => Future.failed(new Exception(s"Workflow ${workflow.id} not found"))
+      case None =>
+        Future.failed(new Exception(s"Workflow ${workflow.id} not found"))
     }
   }
 
   private def completeWorkflow(workflow: Workflow): Future[Unit] = {
     for {
-      taskResults <- Future.sequence(workflow.tasks.map(task => persistenceLayer.getTaskResult(task.id)))
-      workflowResult = WorkflowResult(workflow.id, taskResults.flatten.map(r => r.taskId -> r).toMap)
+      taskResults <- Future.sequence(
+        workflow.tasks.map(task => persistenceLayer.getTaskResult(task.id))
+      )
+      workflowResult = WorkflowResult(
+        workflow.id,
+        taskResults.flatten.map(r => r.taskId -> r).toMap
+      )
       _ <- persistenceLayer.saveWorkflowResult(workflowResult)
     } yield ()
   }
