@@ -42,15 +42,15 @@
 - [ ] 4.4 Verify schemas match actual data structures
 
 ## 5. Integration (Optional)
-- [ ] 5.1 Add Swagger UI dependency to build.sbt (if desired)
-- [ ] 5.2 Create Swagger UI route in ServerComponent
-- [ ] 5.3 Serve OpenAPI spec at /api-docs endpoint
+- [x] 5.1 Add Swagger UI dependency to build.sbt (if desired)
+- [x] 5.2 Create Swagger UI route in ServerComponent
+- [x] 5.3 Serve OpenAPI spec at /api-docs endpoint
 - [ ] 5.4 Test Swagger UI in browser
 
 ## 6. CI/CD
-- [ ] 6.1 Add OpenAPI validation to CI workflow
-- [ ] 6.2 Create GitHub workflow to validate openapi.yaml
-- [ ] 6.3 Ensure validation runs on PR changes
+- [x] 6.1 Add OpenAPI validation to CI workflow
+- [x] 6.2 Create GitHub workflow to validate openapi.yaml
+- [x] 6.3 Ensure validation runs on PR changes
 
 ## 7. Documentation
 - [x] 7.1 Update scala/cassandra-best-practise/README.md

@@ -27,6 +27,8 @@ lazy val core = (project in file("core"))
       "org.http4s" %% "http4s-dsl" % http4sVersion,
       "org.http4s" %% "http4s-ember-server" % http4sVersion,
       "org.http4s" %% "http4s-ember-client" % http4sVersion,
+      // Swagger UI for API documentation
+      "org.webjars" % "swagger-ui" % "5.10.3",
       "com.datastax.oss" % "java-driver-core" % "4.17.0",
       "com.datastax.oss" % "java-driver-query-builder" % "4.17.0",
       "ch.qos.logback" % "logback-classic" % "1.5.6",

@@ -6,9 +6,12 @@ import org.http4s._
 import org.http4s.dsl.io._
 import org.http4s.implicits._
 import org.http4s.ember.server.EmberServerBuilder
+import org.http4s.headers.{`Content-Type`, Location}
 import com.github.plokhotnyuk.jsoniter_scala.core._
 import com.github.plokhotnyuk.jsoniter_scala.macros._
 import com.comcast.ip4s._
+import java.nio.file.{Files, Paths}
+import scala.io.Source
 
 object ServerComponent extends IOApp {
 
@@ -22,7 +25,40 @@ object ServerComponent extends IOApp {
   implicit val taskDefinitionCodec: JsonValueCodec[TaskDefinition] = JsonCodecMaker.make
   implicit val workflowDefinitionCodec: JsonValueCodec[WorkflowDefinition] = JsonCodecMaker.make
 
-  def routes(workflowEngine: WorkflowEngine, persistenceLayer: PersistenceLayer): HttpRoutes[IO] = {
+  // Serve OpenAPI spec
+  def apiDocsRoutes: HttpRoutes[IO] = {
+    HttpRoutes.of[IO] {
+      // Serve the OpenAPI YAML file
+      case GET -> Root / "api-docs" / "openapi.yaml" =>
+        IO {
+          val openapiPath = Paths.get("openapi.yaml")
+          if (Files.exists(openapiPath)) {
+            val content = Source.fromFile(openapiPath.toFile).mkString
+            Response[IO](
+              status = Status.Ok,
+              headers = Headers(`Content-Type`(MediaType.text.yaml))
+            ).withEntity(content)
+          } else {
+            Response[IO](status = Status.NotFound)
+              .withEntity("OpenAPI specification not found")
+          }
+        }
+
+      // Redirect /api-docs to Swagger UI
+      case GET -> Root / "api-docs" =>
+        PermanentRedirect(Location(Uri.unsafeFromString("/api-docs/index.html?url=/api-docs/openapi.yaml")))
+
+      // Serve Swagger UI static files from WebJars
+      case req @ GET -> "api-docs" /: path =>
+        StaticFile.fromResource(
+          s"/META-INF/resources/webjars/swagger-ui/5.10.3/${path.segments.mkString("/")}",
+          Some(req)
+        ).getOrElseF(NotFound())
+    }
+  }
+
+  // Workflow management routes
+  def workflowRoutes(workflowEngine: WorkflowEngine, persistenceLayer: PersistenceLayer): HttpRoutes[IO] = {
     HttpRoutes.of[IO] {
       case req @ POST -> Root / "workflows" =>
         for {
@@ -52,17 +88,29 @@ object ServerComponent extends IOApp {
     }
   }
 
+  // Combine all routes
+  def allRoutes(workflowEngine: WorkflowEngine, persistenceLayer: PersistenceLayer): HttpRoutes[IO] = {
+    workflowRoutes(workflowEngine, persistenceLayer) <+> apiDocsRoutes
+  }
+
   def run(args: List[String]): IO[ExitCode] = {
     val persistenceLayer = new InMemoryPersistence()
     val workflowEngine = new WorkflowEngine(persistenceLayer)(scala.concurrent.ExecutionContext.global)
+
+    val app = allRoutes(workflowEngine, persistenceLayer).orNotFound
 
     EmberServerBuilder
       .default[IO]
       .withHost(ipv4"0.0.0.0")
       .withPort(port"8080")
-      .withHttpApp(routes(workflowEngine, persistenceLayer).orNotFound)
+      .withHttpApp(app)
       .build
-      .use(_ => IO.never)
+      .use(_ =>
+        IO.println("🚀 Server started on http://localhost:8080") *>
+        IO.println("📖 API Documentation: http://localhost:8080/api-docs") *>
+        IO.println("📝 OpenAPI Spec: http://localhost:8080/api-docs/openapi.yaml") *>
+        IO.never
+      )
       .as(ExitCode.Success)
   }
 }

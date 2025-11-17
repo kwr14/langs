@@ -1,0 +1,106 @@
+name: Validate OpenAPI Specification
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'scala/cassandra-best-practise/openapi.yaml'
+      - '.github/workflows/validate-openapi.yml'
+  pull_request:
+    paths:
+      - 'scala/cassandra-best-practise/openapi.yaml'
+      - '.github/workflows/validate-openapi.yml'
+
+jobs:
+  validate:
+    name: Validate OpenAPI Spec
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: 📥 Checkout repository
+        uses: actions/checkout@v4
+
+      - name: 📦 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: ✅ Validate OpenAPI spec with swagger-cli
+        run: |
+          echo "🔍 Validating OpenAPI specification..."
+          npx @apidevtools/swagger-cli@4 validate scala/cassandra-best-practise/openapi.yaml
+          echo "✅ OpenAPI specification is valid!"
+
+      - name: 🐍 Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: ✅ Validate YAML syntax
+        run: |
+          echo "🔍 Validating YAML syntax..."
+          python3 -c "import yaml; yaml.safe_load(open('scala/cassandra-best-practise/openapi.yaml')); print('✅ YAML syntax is valid!')"
+
+      - name: 📊 Display spec info
+        run: |
+          echo "📊 OpenAPI Specification Info:"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          python3 << 'EOF'
+          import yaml
+          import json
+          
+          with open('scala/cassandra-best-practise/openapi.yaml') as f:
+              spec = yaml.safe_load(f)
+          
+          print(f"📝 Title: {spec['info']['title']}")
+          print(f"🔢 Version: {spec['info']['version']}")
+          print(f"📖 OpenAPI Version: {spec['openapi']}")
+          print(f"🌐 Servers: {len(spec.get('servers', []))}")
+          print(f"🛣️  Paths: {len(spec.get('paths', {}))}")
+          print(f"📦 Schemas: {len(spec.get('components', {}).get('schemas', {}))}")
+          
+          print("\n🛣️  Endpoints:")
+          for path, methods in spec.get('paths', {}).items():
+              for method, details in methods.items():
+                  if method.upper() in ['GET', 'POST', 'PUT', 'DELETE', 'PATCH']:
+                      summary = details.get('summary', 'No summary')
+                      print(f"  • {method.upper():6} {path:30} - {summary}")
+          
+          print("\n📦 Schemas:")
+          for schema_name in spec.get('components', {}).get('schemas', {}).keys():
+              print(f"  • {schema_name}")
+          
+          print("\n✅ All validations passed!")
+          EOF
+
+      - name: 📈 Summary
+        if: success()
+        run: |
+          echo "## ✅ OpenAPI Validation Successful" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "The OpenAPI specification is valid and ready to use!" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Validation Steps Completed:" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ OpenAPI 3.1 structure validation (swagger-cli)" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ YAML syntax validation (Python)" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Specification info extracted successfully" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Specification Details:" >> $GITHUB_STEP_SUMMARY
+          echo "- **File**: \`scala/cassandra-best-practise/openapi.yaml\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **OpenAPI Version**: 3.1.0" >> $GITHUB_STEP_SUMMARY
+          echo "- **API**: Workflow Management API v1.0.0" >> $GITHUB_STEP_SUMMARY
+
+      - name: ❌ Validation Failed
+        if: failure()
+        run: |
+          echo "## ❌ OpenAPI Validation Failed" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "The OpenAPI specification has validation errors. Please check the logs above for details." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Common Issues:" >> $GITHUB_STEP_SUMMARY
+          echo "- Invalid YAML syntax" >> $GITHUB_STEP_SUMMARY
+          echo "- Missing required fields" >> $GITHUB_STEP_SUMMARY
+          echo "- Invalid schema references" >> $GITHUB_STEP_SUMMARY
+          echo "- Incorrect OpenAPI version format" >> $GITHUB_STEP_SUMMARY
+

@@ -40,6 +40,19 @@ This project demonstrates best practices for building a workflow orchestration s
 
 The API is documented using OpenAPI 3.1 specification. See [`openapi.yaml`](./openapi.yaml) for the complete specification.
 
+### Interactive API Documentation (Swagger UI)
+
+The server includes an integrated Swagger UI for interactive API exploration:
+
+- **Swagger UI**: http://localhost:8080/api-docs
+- **OpenAPI Spec**: http://localhost:8080/api-docs/openapi.yaml
+
+With Swagger UI, you can:
+- 📖 Browse all API endpoints and schemas
+- 🧪 Test API calls directly from your browser
+- 📝 See request/response examples
+- 🔍 Explore data models interactively
+
 ### Quick Start
 
 1. **Start the server:**
@@ -47,6 +60,17 @@ The API is documented using OpenAPI 3.1 specification. See [`openapi.yaml`](./op
    sbt "project core" run
    ```
    Server will start on `http://localhost:8080`
+
+   You'll see:
+   ```
+   🚀 Server started on http://localhost:8080
+   📖 API Documentation: http://localhost:8080/api-docs
+   📝 OpenAPI Spec: http://localhost:8080/api-docs/openapi.yaml
+   ```
+
+2. **Open Swagger UI:**
+
+   Navigate to http://localhost:8080/api-docs in your browser to explore the API interactively.
 
 2. **Create a workflow:**
    ```bash
@@ -85,13 +109,22 @@ The API is documented using OpenAPI 3.1 specification. See [`openapi.yaml`](./op
 
 ### API Endpoints
 
+#### Workflow Management
+
 | Method | Endpoint                      | Description                          |
 |--------|-------------------------------|--------------------------------------|
 | POST   | `/workflows`                  | Create and start a new workflow      |
 | GET    | `/workflows/{id}`             | Get workflow status and tasks        |
 | GET    | `/workflows/{id}/result`      | Get workflow execution result        |
 
-For detailed request/response schemas, examples, and error codes, see the [OpenAPI specification](./openapi.yaml).
+#### API Documentation
+
+| Method | Endpoint                      | Description                          |
+|--------|-------------------------------|--------------------------------------|
+| GET    | `/api-docs`                   | Interactive Swagger UI documentation |
+| GET    | `/api-docs/openapi.yaml`      | OpenAPI 3.1 specification (YAML)     |
+
+For detailed request/response schemas, examples, and error codes, see the [OpenAPI specification](./openapi.yaml) or browse the [interactive documentation](http://localhost:8080/api-docs).
 
 ## Data Models
 
