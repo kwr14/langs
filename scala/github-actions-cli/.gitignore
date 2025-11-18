@@ -1,0 +1,42 @@
+# sbt specific
+target/
+project/target/
+project/project/target/
+
+# Scala-IDE specific
+.scala_dependencies
+.worksheet
+.cache
+.cache-main
+.cache-tests
+
+# IDE files
+.idea/
+*.iml
+.vscode/
+.metals/
+.bsp/
+
+# Build artifacts
+*.class
+*.jar
+*.war
+*.ear
+*.log
+
+# Assembly plugin
+assembly/
+
+# Temporary files
+*.tmp
+*.swp
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Config files with secrets (keep template)
+*.conf
+!*.conf.example
+

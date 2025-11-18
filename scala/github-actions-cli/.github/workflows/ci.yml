@@ -1,0 +1,101 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    name: Test on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        java: ['11', '17', '21']
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Setup Java
+      uses: actions/setup-java@v4
+      with:
+        distribution: 'temurin'
+        java-version: ${{ matrix.java }}
+        cache: 'sbt'
+    
+    - name: Run tests
+      run: sbt test
+      working-directory: scala/github-actions-cli
+    
+    - name: Check formatting
+      run: sbt scalafmtCheck
+      working-directory: scala/github-actions-cli
+      if: matrix.java == '21' && matrix.os == 'ubuntu-latest'
+  
+  build:
+    name: Build artifacts
+    runs-on: ubuntu-latest
+    needs: test
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Setup Java
+      uses: actions/setup-java@v4
+      with:
+        distribution: 'temurin'
+        java-version: '21'
+        cache: 'sbt'
+    
+    - name: Build fat JAR
+      run: sbt "cli/assembly"
+      working-directory: scala/github-actions-cli
+    
+    - name: Upload JAR artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: github-actions-cli-jar
+        path: scala/github-actions-cli/cli/target/scala-3.5.0/github-actions-cli.jar
+        retention-days: 30
+  
+  native-image:
+    name: Build native image on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    needs: test
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Setup GraalVM
+      uses: graalvm/setup-graalvm@v1
+      with:
+        java-version: '21'
+        distribution: 'graalvm-community'
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        native-image-job-reports: 'true'
+        cache: 'sbt'
+    
+    - name: Build native image
+      run: sbt "cli/nativeImage"
+      working-directory: scala/github-actions-cli
+    
+    - name: Test native image
+      run: |
+        ./cli/target/native-image/gh-actions version
+      working-directory: scala/github-actions-cli
+    
+    - name: Upload native image
+      uses: actions/upload-artifact@v4
+      with:
+        name: gh-actions-${{ matrix.os }}
+        path: scala/github-actions-cli/cli/target/native-image/gh-actions
+        retention-days: 30
+

@@ -1,0 +1,37 @@
+# sbt build artifacts
+target/
+*/target/
+*/*/target/
+
+# IDE files
+.idea/
+.vscode/
+.metals/
+.bloop/
+.bsp/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Git
+.git/
+.gitignore
+
+# Documentation
+*.md
+docs/
+
+# Scripts
+scripts/
+
+# CI/CD
+.github/
+
+# Docker
+Dockerfile
+.dockerignore
+
