@@ -134,6 +134,7 @@ class Dashboard[F[_]: Async](
       "",
       Style.subtitle("Actions:").render,
       "  r/F5        Refresh",
+      "  o/O         Open run in browser",
       "  f//         Filter",
       "  ?/F1        Toggle help",
       "  Ctrl+C/D    Quit",
@@ -231,12 +232,32 @@ class Dashboard[F[_]: Async](
       terminal.writeLine(line.render)
     }
 
-  /** Render steps list */
+  /** Render steps list and logs */
   private def renderSteps(job: Job, bounds: Rect): F[Unit] =
-    job.steps.traverse_ { step =>
-      val line = WorkflowComponents.renderStepLine(step, indent = 0)
-      terminal.writeLine(line.render)
-    }
+    for
+      // Render steps summary
+      _ <- job.steps.traverse_ { step =>
+        val line = WorkflowComponents.renderStepLine(step, indent = 0)
+        terminal.writeLine(line.render)
+      }
+      // Render logs if available
+      _ <- job.logs match
+        case Some(logs) if logs.nonEmpty =>
+          for
+            _ <- terminal.writeLine("")
+            _ <- terminal.writeLine(Style.title("Job Logs:").render)
+            _ <- terminal.writeLine(Style.horizontalLine(80).render)
+            // Display last 50 lines of logs to avoid overwhelming the terminal
+            _ <- logs.split("\n").toList.takeRight(50).traverse_ { line =>
+              terminal.writeLine(line)
+            }
+          yield ()
+        case _ =>
+          for
+            _ <- terminal.writeLine("")
+            _ <- terminal.writeLine(Style.dim("(No logs available)").render)
+          yield ()
+    yield ()
 
   /** Handle a navigation action */
   def handleAction(action: NavigationAction): F[Boolean] =
@@ -254,17 +275,120 @@ class Dashboard[F[_]: Async](
       case NavigationAction.GoToBottom =>
         stateRef.update(_.goToBottom) >> render >> Async[F].pure(true)
       case NavigationAction.Select =>
-        stateRef.update(_.select) >> render >> Async[F].pure(true)
+        handleSelect >> Async[F].pure(true)
       case NavigationAction.Back =>
         stateRef.update(_.back) >> render >> Async[F].pure(true)
       case NavigationAction.Help =>
         stateRef.update(_.toggleHelp) >> render >> Async[F].pure(true)
       case NavigationAction.Refresh =>
         refresh >> Async[F].pure(true)
+      case NavigationAction.OpenInBrowser =>
+        openInBrowser >> Async[F].pure(true)
       case NavigationAction.Quit =>
         Async[F].pure(false) // Signal to exit
       case _ =>
         Async[F].pure(true)
+
+  /** Handle select action based on current view mode */
+  def handleSelect: F[Unit] =
+    for
+      state <- stateRef.get
+      _ <- state.viewMode match
+        case ViewMode.RunList =>
+          // Load jobs for selected run and switch to RunDetail view
+          selectCurrentRun
+        case ViewMode.RunDetail =>
+          // Load logs for selected job and switch to JobDetail view
+          selectCurrentJob
+        case _ =>
+          Async[F].unit
+    yield ()
+
+  /** Select current job and load its logs */
+  def selectCurrentJob: F[Unit] =
+    for
+      state <- stateRef.get
+      _ <- state.selectedRun.flatMap(_.jobs.lift(state.selectedJobIndex)) match
+        case Some(job) =>
+          for
+            _ <- stateRef.update(_.setLoading(true))
+            _ <- render
+            logs <- client.getJobLogs(state.owner, state.repo, job.id).attempt
+            _ <- logs match
+              case Right(logContent) =>
+                // Update the job with logs
+                val updatedJob = job.copy(logs = Some(logContent))
+                val updatedRun = state.selectedRun.get.copy(
+                  jobs = state.selectedRun.get.jobs
+                    .updated(state.selectedJobIndex, updatedJob)
+                )
+                val updatedRuns = state.runs.map(r =>
+                  if r.id == updatedRun.id then updatedRun else r
+                )
+                stateRef.update(s =>
+                  s.copy(runs = updatedRuns).select.setLoading(false)
+                )
+              case Left(err) =>
+                stateRef.update(
+                  _.setError(s"Failed to load logs: ${err.getMessage}")
+                )
+            _ <- render
+          yield ()
+        case None =>
+          Async[F].unit
+    yield ()
+
+  /** Open current workflow run in browser */
+  def openInBrowser: F[Unit] =
+    stateRef.get.flatMap { state =>
+      state.selectedRun match
+        case Some(run) =>
+          // Use the 'open' command on macOS, 'xdg-open' on Linux, 'start' on Windows
+          val openCommand = System.getProperty("os.name").toLowerCase match
+            case os if os.contains("mac")                       => "open"
+            case os if os.contains("nix") || os.contains("nux") => "xdg-open"
+            case os if os.contains("win") => "cmd /c start"
+            case _                        => "xdg-open" // Default to xdg-open
+
+          Async[F].blocking {
+            import scala.sys.process.*
+            try s"$openCommand ${run.htmlUrl}".!
+            catch case _: Exception => () // Silently ignore errors
+          }.void
+        case None =>
+          Async[F].unit
+    }
+
+  /** Select current run and load its jobs */
+  def selectCurrentRun: F[Unit] =
+    for
+      state <- stateRef.get
+      _ <- state.selectedRun match
+        case Some(run) =>
+          for
+            _ <- stateRef.update(_.setLoading(true))
+            _ <- render
+            jobs <- client
+              .listWorkflowRunJobs(state.owner, state.repo, run.id)
+              .attempt
+            _ <- jobs match
+              case Right(jobList) =>
+                // Update the run with jobs
+                val updatedRun = run.copy(jobs = jobList)
+                val updatedRuns =
+                  state.runs.map(r => if r.id == run.id then updatedRun else r)
+                stateRef.update(s =>
+                  s.copy(runs = updatedRuns).select.setLoading(false)
+                )
+              case Left(err) =>
+                stateRef.update(
+                  _.setError(s"Failed to load jobs: ${err.getMessage}")
+                )
+            _ <- render
+          yield ()
+        case None =>
+          Async[F].unit
+    yield ()
 
   /** Refresh workflow runs from GitHub */
   def refresh: F[Unit] =
@@ -307,21 +431,38 @@ class Dashboard[F[_]: Async](
   def run(
       autoRefreshInterval: Option[FiniteDuration] = Some(30.seconds)
   ): F[Unit] =
-    for
-      _ <- terminal.clear
-      _ <- terminal.hideCursor
-      _ <- refresh // Initial load
-      _ <- render
-      _ <- autoRefreshInterval match
-        case Some(interval) =>
-          // Run event loop and auto-refresh concurrently
-          eventLoop.both(autoRefresh(interval).compile.drain).void
-        case None =>
-          // Just run event loop
-          eventLoop
-      _ <- terminal.showCursor
-      _ <- terminal.clear
-    yield ()
+    // Use bracket to ensure cleanup happens even on error
+    Async[F].bracket(
+      // Acquire: setup terminal
+      for
+        _ <- terminal.enableRawMode
+        _ <- terminal.enterAlternateScreen
+        _ <- terminal.clear
+        _ <- terminal.hideCursor
+        _ <- refresh // Initial load
+        _ <- render
+      yield ()
+    )(
+      // Use: run the dashboard
+      _ =>
+        autoRefreshInterval match
+          case Some(interval) =>
+            // Run event loop and auto-refresh concurrently
+            // Use race so that when eventLoop exits, we cancel autoRefresh
+            eventLoop.race(autoRefresh(interval).compile.drain).void
+          case None =>
+            // Just run event loop
+            eventLoop
+    )(
+      // Release: cleanup terminal (always runs, even on error)
+      _ =>
+        for
+          _ <- terminal.showCursor.handleErrorWith(_ => Async[F].unit)
+          _ <- terminal.exitAlternateScreen.handleErrorWith(_ => Async[F].unit)
+          _ <- terminal.disableRawMode.handleErrorWith(_ => Async[F].unit)
+          _ <- terminal.clear.handleErrorWith(_ => Async[F].unit)
+        yield ()
+    )
 
 object Dashboard:
   import cats.effect.kernel.Async

@@ -170,6 +170,22 @@ class Http4sGitHubClient[F[_]: Async: Console](
     val uri = buildUri(s"repos/$owner/$repo/actions/runs/$runId/cancel")
     request[Unit](Method.POST, uri)
 
+  override def getJobLogs(
+      owner: String,
+      repo: String,
+      jobId: Long
+  ): F[String] =
+    val uri = buildUri(s"repos/$owner/$repo/actions/jobs/$jobId/logs")
+    val req = Request[F](Method.GET, uri)
+      .withHeaders(authHeader, userAgentHeader)
+
+    // GitHub returns a 302 redirect to the actual log file
+    // The client should follow redirects automatically
+    client.expect[String](req).handleErrorWith { error =>
+      // If logs are not available, return empty string
+      Async[F].pure("")
+    }
+
 object Http4sGitHubClient:
   // GitHub API response wrappers
   case class WorkflowRunsResponse(workflow_runs: List[WorkflowRun])

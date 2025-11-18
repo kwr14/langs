@@ -68,7 +68,8 @@ case class Job(
     conclusion: Option[WorkflowConclusion],
     startedAt: Option[Instant],
     completedAt: Option[Instant],
-    steps: List[Step]
+    steps: List[Step],
+    logs: Option[String] = None // Job logs (fetched separately)
 ):
   def duration: Option[Long] =
     for
@@ -90,7 +91,9 @@ object Job:
     "started_at",
     "completed_at",
     "steps"
-  )(Job.apply)
+  )((id, name, status, conclusion, startedAt, completedAt, steps) =>
+    Job(id, name, status, conclusion, startedAt, completedAt, steps, None)
+  )
   given Encoder[Job] = Encoder.forProduct7(
     "id",
     "name",
@@ -115,6 +118,7 @@ case class WorkflowRun(
     createdAt: Instant,
     updatedAt: Instant,
     runStartedAt: Option[Instant],
+    htmlUrl: String,
     jobs: List[Job]
 ):
   def duration: Option[Long] =
@@ -146,6 +150,7 @@ object WorkflowRun:
       createdAt <- c.get[Instant]("created_at")
       updatedAt <- c.get[Instant]("updated_at")
       runStartedAt <- c.get[Option[Instant]]("run_started_at")
+      htmlUrl <- c.get[String]("html_url")
       jobs <- c.getOrElse[List[Job]]("jobs")(List.empty)
     yield WorkflowRun(
       id,
@@ -158,6 +163,7 @@ object WorkflowRun:
       createdAt,
       updatedAt,
       runStartedAt,
+      htmlUrl,
       jobs
     )
   }
