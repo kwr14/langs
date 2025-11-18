@@ -13,7 +13,31 @@ class WorkflowEngine(persistenceLayer: PersistenceLayer)(implicit
       workflowDef: WorkflowDefinition,
       variables: Map[String, String]
   ): Future[Workflow] = {
-    val tasks = workflowDef.taskDefinitions.map(createTask)
+    // First create tasks without dependencies
+    val tasksWithoutDeps: List[Task] = workflowDef.taskDefinitions.map {
+      taskDef =>
+        Task(
+          name = taskDef.name,
+          taskType = taskDef.taskType,
+          parameters = Map.empty,
+          maxRetries = taskDef.maxRetries,
+          dependencies = Set.empty // Will be filled in next step
+        )
+    }
+
+    // Build name-to-ID mapping
+    val nameToId: Map[String, ID] =
+      tasksWithoutDeps.map(t => t.name -> t.id).toMap
+
+    // Now resolve dependencies by name
+    val tasks: List[Task] =
+      workflowDef.taskDefinitions.zip(tasksWithoutDeps).map {
+        case (taskDef, task) =>
+          val resolvedDeps: Set[ID] =
+            taskDef.dependencies.flatMap(depName => nameToId.get(depName)).toSet
+          task.copy(dependencies = resolvedDeps)
+      }
+
     val workflow = Workflow(
       name = workflowDef.name,
       tasks = tasks,
@@ -36,17 +60,6 @@ class WorkflowEngine(persistenceLayer: PersistenceLayer)(implicit
     result.foreach(w => scheduleNextTasks(w))
 
     result
-  }
-
-  private def createTask(taskDef: TaskDefinition): Task = {
-    Task(
-      name = taskDef.name,
-      taskType = taskDef.taskType,
-      parameters = Map.empty, // To be filled when the task is ready to run
-      maxRetries = taskDef.maxRetries,
-      dependencies =
-        taskDef.dependencies.map(_ => UUID.randomUUID()) // Placeholder IDs
-    )
   }
 
   private def scheduleNextTasks(workflow: Workflow): Future[Unit] = {
