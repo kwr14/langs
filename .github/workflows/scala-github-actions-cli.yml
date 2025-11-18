@@ -1,16 +1,16 @@
-name: CI
+name: Scala GitHub Actions CLI
 
 on:
   push:
     branches: [main, develop]
     paths:
       - "scala/github-actions-cli/**"
-      - ".github/workflows/ci.yml"
+      - ".github/workflows/scala-github-actions-cli.yml"
   pull_request:
     branches: [main]
     paths:
       - "scala/github-actions-cli/**"
-      - ".github/workflows/ci.yml"
+      - ".github/workflows/scala-github-actions-cli.yml"
   workflow_dispatch:
 
 jobs:
@@ -130,3 +130,4 @@ jobs:
           name: gh-actions-${{ matrix.os }}
           path: scala/github-actions-cli/cli/target/native-image/gh-actions
           retention-days: 30
+
