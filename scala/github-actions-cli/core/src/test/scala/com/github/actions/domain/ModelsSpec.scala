@@ -7,7 +7,9 @@ import java.time.Instant
 class ModelsSpec extends AnyFlatSpec with Matchers:
 
   "Repository.fromFullName" should "parse valid repository names" in {
-    Repository.fromFullName("owner/repo") shouldBe Some(Repository("owner", "repo"))
+    Repository.fromFullName("owner/repo") shouldBe Some(
+      Repository("owner", "repo")
+    )
   }
 
   it should "return None for invalid names" in {
@@ -71,7 +73,8 @@ class ModelsSpec extends AnyFlatSpec with Matchers:
     completedJob.isSuccessful shouldBe true
     completedJob.isFailed shouldBe false
 
-    val failedJob = completedJob.copy(conclusion = Some(WorkflowConclusion.Failure))
+    val failedJob =
+      completedJob.copy(conclusion = Some(WorkflowConclusion.Failure))
     failedJob.isSuccessful shouldBe false
     failedJob.isFailed shouldBe true
   }
@@ -106,6 +109,7 @@ class ModelsSpec extends AnyFlatSpec with Matchers:
       createdAt = Instant.now(),
       updatedAt = Instant.now(),
       runStartedAt = Some(Instant.now()),
+      htmlUrl = "https://github.com/owner/repo/actions/runs/1",
       jobs = List(runningJob, completedJob)
     )
     run.runningJobs should have length 1
@@ -125,11 +129,13 @@ class ModelsSpec extends AnyFlatSpec with Matchers:
       createdAt = Instant.now(),
       updatedAt = Instant.now(),
       runStartedAt = Some(Instant.now()),
+      htmlUrl = "https://github.com/owner/repo/actions/runs/1",
       jobs = List.empty
     )
     filter.matches(run) shouldBe true
 
-    val runningRun = run.copy(status = WorkflowStatus.InProgress, conclusion = None)
+    val runningRun =
+      run.copy(status = WorkflowStatus.InProgress, conclusion = None)
     filter.matches(runningRun) shouldBe false
   }
 
@@ -146,6 +152,7 @@ class ModelsSpec extends AnyFlatSpec with Matchers:
       createdAt = Instant.now(),
       updatedAt = Instant.now(),
       runStartedAt = Some(Instant.now()),
+      htmlUrl = "https://github.com/owner/repo/actions/runs/1",
       jobs = List.empty
     )
     filter.matches(run) shouldBe true
@@ -167,11 +174,12 @@ class ModelsSpec extends AnyFlatSpec with Matchers:
       createdAt = Instant.now(),
       updatedAt = Instant.now(),
       runStartedAt = Some(Instant.now()),
+      htmlUrl = "https://github.com/owner/repo/actions/runs/1",
       jobs = List.empty
     )
     filter.matches(run) shouldBe true
 
-    val otherRun = run.copy(actor = Actor("other", "https://example.com/avatar.png"))
+    val otherRun =
+      run.copy(actor = Actor("other", "https://example.com/avatar.png"))
     filter.matches(otherRun) shouldBe false
   }
-

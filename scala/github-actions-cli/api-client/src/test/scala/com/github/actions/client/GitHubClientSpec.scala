@@ -32,6 +32,7 @@ class GitHubClientSpec extends AsyncFreeSpec with AsyncIOSpec with Matchers:
     createdAt = Instant.parse("2023-01-01T00:00:00Z"),
     updatedAt = Instant.parse("2023-01-01T00:05:00Z"),
     runStartedAt = Some(Instant.parse("2023-01-01T00:00:10Z")),
+    htmlUrl = "https://github.com/owner/repo/actions/runs/123456789",
     jobs = List.empty
   )
 
