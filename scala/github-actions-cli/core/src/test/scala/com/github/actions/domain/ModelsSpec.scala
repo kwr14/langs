@@ -112,8 +112,8 @@ class ModelsSpec extends AnyFlatSpec with Matchers:
       htmlUrl = "https://github.com/owner/repo/actions/runs/1",
       jobs = List(runningJob, completedJob)
     )
-    run.runningJobs should have length 1
-    run.runningJobs.head.name shouldBe "running"
+    run.runningJobs.should(have.length(1))
+    run.runningJobs.head.name.shouldBe("running")
   }
 
   "RunFilter.matches" should "filter by status" in {

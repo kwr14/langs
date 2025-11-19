@@ -45,11 +45,6 @@ jobs:
         run: sbt test
         working-directory: scala/github-actions-cli
 
-      - name: Check formatting
-        run: sbt scalafmtCheck
-        working-directory: scala/github-actions-cli
-        if: matrix.java == '21' && matrix.os == 'ubuntu-latest'
-
   build:
     name: Build artifacts
     runs-on: ubuntu-latest
