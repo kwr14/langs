@@ -9,6 +9,7 @@ enum ViewMode:
   case RunDetail      // Detail view of a single run
   case JobDetail      // Detail view of a single job
   case Help           // Help screen
+  case Assistant      // AI assistant panel
 
 /** Dashboard state */
 case class DashboardState(
@@ -30,6 +31,10 @@ case class DashboardState(
   lastRefresh: Option[Instant] = None,
   isLoading: Boolean = false,
   error: Option[String] = None,
+  assistantEnabled: Boolean = false,
+  assistantSuggestions: List[com.github.actions.domain.AssistantSuggestion] = List.empty,
+  assistantSelectedIndex: Int = 0,
+  autoRefreshEnabled: Boolean = true,
   
   // Repository info
   owner: String = "",
@@ -62,6 +67,8 @@ case class DashboardState(
           copy(selectedJobIndex = selectedJobIndex - 1)
         else
           this
+      case ViewMode.Assistant =>
+        if assistantSelectedIndex > 0 then copy(assistantSelectedIndex = assistantSelectedIndex - 1) else this
       case _ => this
   
   /** Move selection down */
@@ -77,6 +84,8 @@ case class DashboardState(
           case Some(run) if selectedJobIndex < run.jobs.length - 1 =>
             copy(selectedJobIndex = selectedJobIndex + 1)
           case _ => this
+      case ViewMode.Assistant =>
+        if assistantSelectedIndex < assistantSuggestions.length - 1 then copy(assistantSelectedIndex = assistantSelectedIndex + 1) else this
       case _ => this
   
   /** Page up */
@@ -100,6 +109,7 @@ case class DashboardState(
     viewMode match
       case ViewMode.RunList => copy(selectedRunIndex = 0)
       case ViewMode.RunDetail => copy(selectedJobIndex = 0)
+      case ViewMode.Assistant => copy(assistantSelectedIndex = 0)
       case _ => this
   
   /** Go to bottom */
@@ -111,6 +121,7 @@ case class DashboardState(
         selectedRun match
           case Some(run) => copy(selectedJobIndex = (run.jobs.length - 1).max(0))
           case None => this
+      case ViewMode.Assistant => copy(assistantSelectedIndex = (assistantSuggestions.length - 1).max(0))
       case _ => this
   
   /** Select current item (drill down) */
@@ -139,6 +150,12 @@ case class DashboardState(
       copy(viewMode = ViewMode.RunList)
     else
       copy(viewMode = ViewMode.Help)
+
+  def toggleAssistant: DashboardState =
+    if viewMode == ViewMode.Assistant then
+      copy(viewMode = ViewMode.RunList)
+    else
+      copy(viewMode = ViewMode.Assistant)
   
   /** Update runs */
   def updateRuns(newRuns: List[WorkflowRun]): DashboardState =
@@ -156,4 +173,7 @@ case class DashboardState(
   /** Set error */
   def setError(err: String): DashboardState =
     copy(error = Some(err), isLoading = false)
+
+  def toggleAutoRefresh: DashboardState =
+    copy(autoRefreshEnabled = !autoRefreshEnabled)
 

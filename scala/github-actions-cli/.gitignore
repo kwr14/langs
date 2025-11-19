@@ -36,6 +36,9 @@ assembly/
 .DS_Store
 Thumbs.db
 
+# Parent OS files
+../../.DS_Store
+
 # Config files with secrets (keep template)
 *.conf
 !*.conf.example

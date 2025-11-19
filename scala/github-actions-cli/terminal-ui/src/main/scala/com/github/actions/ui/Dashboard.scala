@@ -6,15 +6,18 @@ import cats.syntax.all.*
 import cats.effect.syntax.spawn.*
 import fs2.Stream
 import com.github.actions.client.GitHubClient
+import com.github.actions.client.{OllamaModelClient, ModelConfig, AssistantService}
 import com.github.actions.domain.{Repository, WorkflowRun, Job}
 import scala.concurrent.duration.*
+import fansi.Str
 
 /** Dashboard component that manages the interactive UI */
 class Dashboard[F[_]: Async](
     client: GitHubClient[F],
     terminal: Terminal[F],
     keyReader: KeyReader[F],
-    stateRef: Ref[F, DashboardState]
+    stateRef: Ref[F, DashboardState],
+    assistantService: AssistantService[F]
 ):
 
   /** Render the current state to the terminal */
@@ -43,6 +46,8 @@ class Dashboard[F[_]: Async](
         renderJobDetail(state, width, height)
       case ViewMode.Help =>
         renderHelp(width, height)
+      case ViewMode.Assistant =>
+        renderAssistant(state, width, height)
 
   /** Render the run list view */
   private def renderRunList(
@@ -50,20 +55,85 @@ class Dashboard[F[_]: Async](
       width: Int,
       height: Int
   ): F[Unit] =
-    val bounds = Rect(0, 0, width, height)
-    val layout = Layout.vertical(
-      bounds,
-      List(
-        Constraint.Length(3), // Header
-        Constraint.Min(10), // Run list
-        Constraint.Length(2) // Footer
-      )
-    )
+    val lastRef = state.lastRefresh.map(WorkflowComponents.formatRelativeTime).getOrElse("N/A")
+    val runningDot = if state.filteredRuns.exists(_.isRunning) then Style.Colors.inProgress("●") else Style.Colors.dim("○")
+    val headerLine =
+      Style.highlight(" GitHub Actions Dashboard ") ++
+      Str("- ") ++ Style.title(s"${state.owner}/${state.repo}") ++
+      Style.dim(s"    Last: ${lastRef}  ") ++ runningDot
+
+    val runs = state.filteredRuns
+    val activeCount = runs.count(_.isRunning)
+    val completed = runs.count(_.isCompleted)
+    val successes = runs.count(_.isSuccessful)
+    val successPct = if completed > 0 then ((successes.toDouble / completed.toDouble) * 100).toInt else 0
+    val durations = runs.flatMap(_.duration)
+    val avgDurationStr = if durations.nonEmpty then
+      val avgSec = (durations.sum.toDouble / durations.length.toDouble).toLong
+      WorkflowComponents.formatDuration(java.time.Duration.ofSeconds(avgSec))
+    else "N/A"
+    val metricsLine =
+      Style.info(s" Active: ${activeCount} ") ++
+      Style.success(s" Success: ${successPct}% ") ++
+      Style.dim(s" Avg Duration: ${avgDurationStr} ") ++
+      Style.dim(" Rate Limit: N/A")
+
+    val workflowsHeader = Style.subtitle(" Workflows")
+    val visibleRuns = runs.zipWithIndex.slice(state.scrollOffset, state.scrollOffset + (height - 8).max(1))
+    val runLines = visibleRuns.map { case (run, idx) =>
+      val isSelected = idx == state.selectedRunIndex
+      WorkflowComponents.renderWorkflowRunLine(run, isSelected)
+    }
+
+    val activeJobsHeader = Style.subtitle(" Active Jobs")
+    val activeJobs = runs.flatMap(_.runningJobs)
+    val jobLines = activeJobs.map { job =>
+      WorkflowComponents.renderActiveJobLine(job, barWidth = 20)
+    }
+
+    val footerLine: fansi.Str =
+      if state.isLoading then Style.info(" Loading...")
+      else
+        state.error match
+          case Some(err) => Style.error(s" Error: ${err}")
+          case None =>
+            val pauseLabel = if state.autoRefreshEnabled then "p:Pause" else "p:Resume"
+            Style.dim(" ") ++ Style.highlight("q") ++ Style.dim(":Quit ") ++
+            Style.highlight("r") ++ Style.dim(":Refresh ") ++
+            Style.highlight("↑↓") ++ Style.dim(":Navigate ") ++
+            Style.highlight("⏎") ++ Style.dim(":Details ") ++
+            Style.highlight("o") ++ Style.dim(":Open ") ++
+            Style.highlight("f") ++ Style.dim(":Filter ") ++
+            Style.highlight(pauseLabel)
+
+    val contentLines: List[fansi.Str] =
+      headerLine :: metricsLine :: workflowsHeader :: runLines ::: activeJobsHeader :: jobLines ::: footerLine :: Nil
+
+    val longest = contentLines.map(_.length).foldLeft(10)((acc, n) => if n > acc then n else acc)
+    val innerWidth = longest.max(10)
+    val top = s"${Style.Symbols.cornerTopLeft}${Style.Symbols.horizontalLine * (innerWidth)}${Style.Symbols.cornerTopRight}"
+    val divider = s"${Style.Symbols.teeLeft}${Style.Symbols.horizontalLine * (innerWidth)}${Style.Symbols.teeRight}"
+    val bottom = s"${Style.Symbols.cornerBottomLeft}${Style.Symbols.horizontalLine * (innerWidth)}${Style.Symbols.cornerBottomRight}"
+
+    def boxLine(content: fansi.Str): fansi.Str =
+      val printableWidth = content.length
+      val spaces = (innerWidth - printableWidth).max(0)
+      Style.dim(Style.Symbols.verticalLine) ++ content ++ Style.dim(" " * spaces) ++ Style.dim(Style.Symbols.verticalLine)
 
     for
-      _ <- renderHeader(state, layout(0))
-      _ <- renderRuns(state, layout(1))
-      _ <- renderFooter(state, layout(2))
+      _ <- terminal.writeLine(Style.dim(top).render)
+      _ <- terminal.writeLine(boxLine(headerLine).render)
+      _ <- terminal.writeLine(Style.dim(divider).render)
+      _ <- terminal.writeLine(boxLine(metricsLine).render)
+      _ <- terminal.writeLine(Style.dim(divider).render)
+      _ <- terminal.writeLine(boxLine(workflowsHeader).render)
+      _ <- runLines.traverse_(line => terminal.writeLine(boxLine(line).render))
+      _ <- terminal.writeLine(Style.dim(divider).render)
+      _ <- terminal.writeLine(boxLine(activeJobsHeader).render)
+      _ <- jobLines.traverse_(line => terminal.writeLine(boxLine(line).render))
+      _ <- terminal.writeLine(Style.dim(divider).render)
+      _ <- terminal.writeLine(boxLine(footerLine).render)
+      _ <- terminal.writeLine(Style.dim(bottom).render)
     yield ()
 
   /** Render the run detail view */
@@ -127,7 +197,7 @@ class Dashboard[F[_]: Async](
       "  ↑/k         Move up",
       "  ↓/j         Move down",
       "  Enter/Space Select item / Drill down",
-      "  Esc/q       Go back",
+      "  Esc         Go back",
       "  g           Go to top",
       "  G           Go to bottom",
       "  PgUp/PgDn   Page up/down",
@@ -137,12 +207,97 @@ class Dashboard[F[_]: Async](
       "  o/O         Open run in browser",
       "  f//         Filter",
       "  ?/F1        Toggle help",
-      "  Ctrl+C/D    Quit",
+      "  q           Quit",
+      "  p           Pause/Resume auto-refresh",
       "",
       "Press any key to close help..."
     )
 
     helpText.traverse_(line => terminal.writeLine(line))
+
+  private def renderAssistant(state: DashboardState, width: Int, height: Int): F[Unit] =
+    val bounds = Rect(0, 0, width, height)
+    val header = Style.title("Assistant – Debugging Help")
+    val status =
+      if !state.assistantEnabled then
+        Style.warning("Assistant is disabled. Configure AI_ASSISTANT_* settings.")
+      else if state.assistantSuggestions.isEmpty then
+        Style.info("No suggestions yet. Press r to analyze failure.")
+      else
+        Style.subtitle("Suggestions:")
+
+    for
+      _ <- terminal.writeLine(header.render)
+      _ <- terminal.writeLine(Style.horizontalLine(bounds.width).render)
+      _ <- terminal.writeLine(status.render)
+      _ <- state.assistantSuggestions.zipWithIndex.traverse_ { case (sug, idx) =>
+        val title = if idx == state.assistantSelectedIndex then Style.highlight(sug.title) else Style.title(sug.title)
+        val rationale = Style.dim(sug.rationale)
+        terminal.writeLine((title ++ fansi.Str(" ") ++ rationale).render)
+      }
+      _ <- terminal.writeLine(Style.horizontalLine(bounds.width).render)
+      _ <- terminal.writeLine(Style.dim("r:Analyze a:Close y:Copy o:Open q:Quit").render)
+    yield ()
+
+  /** Analyze assistant suggestions based on current selection */
+  def analyzeAssistant: F[Unit] =
+    for
+      state <- stateRef.get
+      suggestions <- state.selectedRun match
+        case Some(run) =>
+          val ensureJobs: F[WorkflowRun] =
+            if run.jobs.nonEmpty then Async[F].pure(run)
+            else client.listWorkflowRunJobs(state.owner, state.repo, run.id).map(j => run.copy(jobs = j))
+          ensureJobs.flatMap { rWithJobs =>
+            val preferredJob = rWithJobs.jobs.find(_.conclusion.exists(_.toString.equalsIgnoreCase("Failure"))).orElse(rWithJobs.jobs.headOption)
+            assistantService.analyze(state.owner, state.repo, rWithJobs, preferredJob)
+          }
+        case None => Async[F].pure(List.empty)
+      _ <- stateRef.update(_.copy(assistantSuggestions = suggestions))
+      _ <- render
+    yield ()
+
+  private def copyAssistantAction: F[Unit] =
+    stateRef.get.flatMap { s =>
+      if s.viewMode == ViewMode.Assistant then
+        s.assistantSuggestions.lift(s.assistantSelectedIndex) match
+          case Some(sugg) =>
+            val cmdOpt = sugg.actions.collectFirst {
+              case com.github.actions.domain.AssistantAction.Command(a) => a.cmd
+            }
+            cmdOpt match
+              case Some(txt) =>
+                Async[F].blocking {
+                  import scala.sys.process.*
+                  try ("pbcopy" #< new java.io.ByteArrayInputStream(txt.getBytes("UTF-8"))).!
+                  catch case _: Exception => ()
+                }.void
+              case None => Async[F].unit
+          case None => Async[F].unit
+      else Async[F].unit
+    }
+
+  private def openAssistantReference: F[Unit] =
+    stateRef.get.flatMap { s =>
+      if s.viewMode == ViewMode.Assistant then
+        s.assistantSuggestions.lift(s.assistantSelectedIndex) match
+          case Some(sugg) =>
+            sugg.references.headOption match
+              case Some(url) =>
+                val openCommand = System.getProperty("os.name").toLowerCase match
+                  case os if os.contains("mac") => "open"
+                  case os if os.contains("nix") || os.contains("nux") => "xdg-open"
+                  case os if os.contains("win") => "cmd /c start"
+                  case _ => "xdg-open"
+                Async[F].blocking {
+                  import scala.sys.process.*
+                  try s"$openCommand $url".!
+                  catch case _: Exception => ()
+                }.void
+              case None => Async[F].unit
+          case None => Async[F].unit
+      else Async[F].unit
+    }
 
   /** Render header */
   private def renderHeader(state: DashboardState, bounds: Rect): F[Unit] =
@@ -167,7 +322,10 @@ class Dashboard[F[_]: Async](
       else
         state.error match
           case Some(err) => Style.error(s"Error: $err")
-          case None      => Style.dim("Press ? for help")
+          case None      =>
+            val pauseLabel = if state.autoRefreshEnabled then "p:Pause" else "p:Resume"
+            val assistantLabel = if state.assistantEnabled then " a:Assistant" else ""
+            Style.dim(s"q:Quit r:Refresh ↑↓:Navigate ⏎:Details f:Filter o:Open${assistantLabel} ${pauseLabel}")
 
     for
       _ <- terminal.writeLine(Style.horizontalLine(bounds.width).render)
@@ -281,9 +439,24 @@ class Dashboard[F[_]: Async](
       case NavigationAction.Help =>
         stateRef.update(_.toggleHelp) >> render >> Async[F].pure(true)
       case NavigationAction.Refresh =>
-        refresh >> Async[F].pure(true)
+        stateRef.get.flatMap { s =>
+          if s.viewMode == ViewMode.Assistant then analyzeAssistant >> Async[F].pure(true)
+          else refresh >> Async[F].pure(true)
+        }
       case NavigationAction.OpenInBrowser =>
-        openInBrowser >> Async[F].pure(true)
+        stateRef.get.flatMap { s =>
+          if s.viewMode == ViewMode.Assistant then openAssistantReference >> Async[F].pure(true)
+          else openInBrowser >> Async[F].pure(true)
+        }
+      case NavigationAction.ToggleAutoRefresh =>
+        stateRef.update(_.toggleAutoRefresh) >> render >> Async[F].pure(true)
+      case NavigationAction.ToggleAssistant =>
+        stateRef.update(_.toggleAssistant) >>
+          stateRef.get.flatMap { s =>
+            if s.viewMode == ViewMode.Assistant then analyzeAssistant else render
+          } >> Async[F].pure(true)
+      case NavigationAction.Copy =>
+        copyAssistantAction >> Async[F].pure(true)
       case NavigationAction.Quit =>
         Async[F].pure(false) // Signal to exit
       case _ =>
@@ -425,7 +598,11 @@ class Dashboard[F[_]: Async](
   def autoRefresh(interval: FiniteDuration): Stream[F, Unit] =
     Stream
       .awakeEvery[F](interval)
-      .evalMap(_ => refresh)
+      .evalMap { _ =>
+        stateRef.get.flatMap { s =>
+          if s.autoRefreshEnabled then refresh else Async[F].unit
+        }
+      }
 
   /** Run the dashboard */
   def run(
@@ -475,7 +652,20 @@ object Dashboard:
       owner: String,
       repo: String
   ): F[Dashboard[F]] =
-    for stateRef <- Ref.of[F, DashboardState](
-        DashboardState(owner = owner, repo = repo)
+    for
+      stateRef <- Ref.of[F, DashboardState](
+        {
+          val enabled = sys.env.get("AI_ASSISTANT_ENABLED").exists(_.toLowerCase == "true") || sys.env.get("OLLAMA_HOST").isDefined
+          DashboardState(owner = owner, repo = repo, assistantEnabled = enabled)
+        }
       )
-    yield new Dashboard[F](client, terminal, keyReader, stateRef)
+      endpoint = sys.env.getOrElse("OLLAMA_HOST", "http://localhost:11434")
+      model = sys.env.getOrElse("OLLAMA_MODEL", "llama3")
+      config = ModelConfig(provider = "ollama", endpoint = endpoint, apiKey = None, model = model)
+      mc = new OllamaModelClient[F]
+      assistant <- AssistantService.create[F](client, mc, config)
+    yield new Dashboard[F](client, terminal, keyReader, stateRef, assistant)
+
+  /** Analyze failure and populate assistant suggestions */
+  private def extractError(lines: List[String]): Option[String] =
+    lines.reverse.find(l => l.toLowerCase.contains("error") || l.toLowerCase.contains("exception"))

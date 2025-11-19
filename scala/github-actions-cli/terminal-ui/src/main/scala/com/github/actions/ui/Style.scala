@@ -14,7 +14,7 @@ object Style:
     val info = fansi.Color.Blue
     val neutral = fansi.Color.White
     val dim = fansi.Color.LightGray
-    val highlight = fansi.Color.Cyan
+    val highlight = fansi.Color.Yellow
     val error = fansi.Color.Red
 
     // Status-specific colors

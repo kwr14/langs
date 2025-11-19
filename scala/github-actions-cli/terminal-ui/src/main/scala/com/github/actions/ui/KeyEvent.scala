@@ -186,6 +186,9 @@ enum NavigationAction:
   case Filter
   case Help
   case OpenInBrowser
+  case ToggleAutoRefresh
+  case ToggleAssistant
+  case Copy
   case Unknown
 
 object NavigationAction:
@@ -201,10 +204,14 @@ object NavigationAction:
       case KeyEvent.Home | KeyEvent.Char('g')      => GoToTop
       case KeyEvent.End | KeyEvent.Char('G')       => GoToBottom
       case KeyEvent.Enter | KeyEvent.Char(' ')     => Select
-      case KeyEvent.Escape | KeyEvent.Char('q')    => Back
+      case KeyEvent.Escape                         => Back
+      case KeyEvent.Char('q')                      => Quit
       case KeyEvent.Ctrl('c') | KeyEvent.Ctrl('d') => Quit
       case KeyEvent.Char('r') | KeyEvent.F(5)      => Refresh
       case KeyEvent.Char('/') | KeyEvent.Char('f') => Filter
       case KeyEvent.Char('?') | KeyEvent.F(1)      => Help
       case KeyEvent.Char('o') | KeyEvent.Char('O') => OpenInBrowser
+      case KeyEvent.Char('p')                      => ToggleAutoRefresh
+      case KeyEvent.Char('a')                      => ToggleAssistant
+      case KeyEvent.Char('y')                      => Copy
       case _                                       => Unknown

@@ -95,6 +95,29 @@ object WorkflowComponents:
         Str("")
     
     statusBadge ++ Str(" ") ++ name ++ Str(" ") ++ duration
+
+  def renderProgressBar(completed: Int, total: Int, width: Int): Str =
+    val safeTotal = if total <= 0 then 1 else total
+    val ratio = completed.toDouble / safeTotal.toDouble
+    val filled = (ratio * width).toInt.max(0).min(width)
+    val rest = (width - filled).max(0)
+    Str("[").overlay(Style.Colors.dim) ++
+      Str("█" * filled).overlay(Style.Colors.success) ++
+      Str("░" * rest).overlay(Style.Colors.dim) ++
+      Str("]").overlay(Style.Colors.dim)
+
+  def renderActiveJobLine(job: Job, barWidth: Int): Str =
+    val name = Str(job.name).overlay(Style.Colors.inProgress).overlay(fansi.Bold.On)
+    val completedSteps = job.steps.count(_.conclusion.isDefined)
+    val totalSteps = job.steps.length
+    val bar = renderProgressBar(completedSteps, totalSteps, barWidth)
+    val stepsInfo = Str(s" ${completedSteps}/${totalSteps} steps")
+    val elapsed = job.startedAt match
+      case Some(start) =>
+        val d = JDuration.between(start, Instant.now())
+        Style.subtitle(s"  Elapsed: ${formatDuration(d)}")
+      case None => Str("")
+    name ++ Str(" ") ++ bar ++ stepsInfo ++ elapsed
   
   /** Job list component */
   class JobList[F[_]: Async](
