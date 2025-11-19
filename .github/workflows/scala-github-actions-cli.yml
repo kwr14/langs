@@ -34,6 +34,9 @@ jobs:
           java-version: ${{ matrix.java }}
           cache: "sbt"
 
+      - name: Setup sbt
+        uses: sbt/setup-sbt@v1
+
       - name: Compile
         run: sbt compile
         working-directory: scala/github-actions-cli
@@ -62,6 +65,9 @@ jobs:
           distribution: "temurin"
           java-version: "21"
           cache: "sbt"
+
+      - name: Setup sbt
+        uses: sbt/setup-sbt@v1
 
       - name: Build fat JAR
         run: sbt "cli/assembly"
@@ -130,4 +136,3 @@ jobs:
           name: gh-actions-${{ matrix.os }}
           path: scala/github-actions-cli/cli/target/native-image/gh-actions
           retention-days: 30
-
