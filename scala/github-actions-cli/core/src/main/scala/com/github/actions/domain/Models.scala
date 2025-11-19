@@ -180,6 +180,7 @@ object WorkflowRun:
       "created_at" -> run.createdAt.asJson,
       "updated_at" -> run.updatedAt.asJson,
       "run_started_at" -> run.runStartedAt.asJson,
+      "html_url" -> run.htmlUrl.asJson,
       "jobs" -> run.jobs.asJson
     )
   }
