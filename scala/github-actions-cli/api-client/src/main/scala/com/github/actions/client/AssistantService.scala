@@ -31,16 +31,19 @@ class AssistantService[F[_]: Async](
             redacted = RedactionService.redactLines(lines).takeRight(200)
             prompt = PromptBuilder.build(run, job, redacted)
             raw <- model.complete(prompt, config).attempt
-            suggestions = raw.toOption.filter(_.nonEmpty).map { txt =>
-              val s = AssistantSuggestion(
-                title = s"Investigate failure in '${job.map(_.name).getOrElse(run.name)}'",
-                rationale = txt,
-                actions = List(AssistantAction.Command(AssistantActionCommand("gh-actions rerun --failed-only", "Retry failed jobs"))),
-                references = List("https://docs.github.com/actions"),
-                confidence = None
-              )
-              List(s)
-            }.getOrElse(List.empty)
+            rationale = raw.toOption match
+              case Some(txt) if txt.nonEmpty => txt
+              case _ =>
+                val logMsg = if logsOpt.isEmpty then "No logs available." else "No clear error found."
+                s"${logMsg} Run status: ${run.status.toString}, conclusion: ${run.conclusion.map(_.toString).getOrElse("N/A")}."
+            suggestion = AssistantSuggestion(
+              title = s"Review '${job.map(_.name).getOrElse(run.name)}'",
+              rationale = rationale,
+              actions = List(AssistantAction.Command(AssistantActionCommand("gh-actions rerun --failed-only", "Retry failed jobs"))),
+              references = List("https://docs.github.com/actions"),
+              confidence = None
+            )
+            suggestions = List(suggestion)
             _ <- cache.update(_ + (key -> (now -> suggestions)))
           yield suggestions
     yield result
