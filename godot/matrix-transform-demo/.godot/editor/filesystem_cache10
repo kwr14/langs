@@ -1,0 +1,14 @@
+63f7b34db8d8cdea90c76aacccf841ec
+::res://::1763637299
+2D.tscn::PackedScene::-1::1763637290::0::1::::<><><>0<>0<><>::res://marker/AxisMarker2D.tscn
+3D.tscn::PackedScene::7705722833369614907::1763637290::0::1::::<><><>0<>0<><>::res://marker/AxisMarker3D.tscn
+default_env.tres::Environment::-1::1763637290::0::1::::<><><>0<>0<><>::
+icon.webp::CompressedTexture2D::3626017087650301524::1763637290::1763637300::1::::<><><>0<>0<>589028de9034123a3c6890116d339791<>res://.godot/imported/icon.webp-e94f9a68b0f625a567a797079e4d325f.ctex::
+README.md::TextFile::-1::1763637290::0::1::::<><><>0<>0<><>::
+::res://marker/::1763637290
+AxisMarker2D.gd::GDScript::2809923133027130188::1763637290::0::1::::AxisMarker2D<>Node2D<>res://marker/AxisMarker2D.svg<>0<>1<><>::
+AxisMarker2D.svg::CompressedTexture2D::7934426910683389084::1763637290::1763637300::1::::<><><>0<>0<>7afc8f3ea0a28394073fdf6b335e8432<>res://.godot/imported/AxisMarker2D.svg-a52a23070c2ca9dcdd860a47183ce756.ctex::
+AxisMarker2D.tscn::PackedScene::-1::1763637290::0::1::::<><><>0<>0<><>::res://marker/AxisMarker2D.gd
+AxisMarker3D.gd::GDScript::1588146020995680924::1763637290::0::1::::AxisMarker3D<>Node3D<>res://marker/AxisMarker3D.svg<>0<>1<><>::
+AxisMarker3D.svg::CompressedTexture2D::6910862812178649270::1763637290::1763637300::1::::<><><>0<>0<>8e6d4b0809dc07696d45888bc45360cb<>res://.godot/imported/AxisMarker3D.svg-613a31ba426aca266949d27353333ae4.ctex::
+AxisMarker3D.tscn::PackedScene::-1::1763637290::0::1::::<><><>0<>0<><>::res://marker/AxisMarker3D.gd

@@ -79,7 +79,10 @@ class Dashboard[F[_]: Async](
       Style.dim(" Rate Limit: N/A")
 
     val workflowsHeader = Style.subtitle(" Workflows")
-    val visibleRuns = runs.zipWithIndex.slice(state.scrollOffset, state.scrollOffset + (height - 8).max(1))
+    val overheadStatic = 12
+    val available = (height - overheadStatic).max(0)
+    val maxRuns = (available * 2 / 3).max(0) // allocate ~2/3 to runs
+    val visibleRuns = runs.zipWithIndex.slice(state.scrollOffset, state.scrollOffset + maxRuns)
     val runLines = visibleRuns.map { case (run, idx) =>
       val isSelected = idx == state.selectedRunIndex
       WorkflowComponents.renderWorkflowRunLine(run, isSelected)
@@ -87,7 +90,7 @@ class Dashboard[F[_]: Async](
 
     val activeJobsHeader = Style.subtitle(" Active Jobs")
     val activeJobs = runs.flatMap(_.runningJobs)
-    val jobLines = activeJobs.map { job =>
+    val jobLinesAll = activeJobs.map { job =>
       WorkflowComponents.renderActiveJobLine(job, barWidth = 20)
     }
 
@@ -106,33 +109,60 @@ class Dashboard[F[_]: Async](
             Style.highlight("f") ++ Style.dim(":Filter ") ++
             Style.highlight(pauseLabel)
 
+    val overhead = 11
+    val capacityLeft = (height - overhead - runLines.length).max(0)
+    val jobLines = jobLinesAll.take(capacityLeft)
+
     val contentLines: List[fansi.Str] =
       headerLine :: metricsLine :: workflowsHeader :: runLines ::: activeJobsHeader :: jobLines ::: footerLine :: Nil
 
     val longest = contentLines.map(_.length).foldLeft(10)((acc, n) => if n > acc then n else acc)
-    val innerWidth = longest.max(10)
+    val innerWidth = longest.max(10).min((width - 2).max(10))
     val top = s"${Style.Symbols.cornerTopLeft}${Style.Symbols.horizontalLine * (innerWidth)}${Style.Symbols.cornerTopRight}"
     val divider = s"${Style.Symbols.teeLeft}${Style.Symbols.horizontalLine * (innerWidth)}${Style.Symbols.teeRight}"
     val bottom = s"${Style.Symbols.cornerBottomLeft}${Style.Symbols.horizontalLine * (innerWidth)}${Style.Symbols.cornerBottomRight}"
 
-    def boxLine(content: fansi.Str): fansi.Str =
-      val printableWidth = content.length
-      val spaces = (innerWidth - printableWidth).max(0)
-      Style.dim(Style.Symbols.verticalLine) ++ content ++ Style.dim(" " * spaces) ++ Style.dim(Style.Symbols.verticalLine)
+    def boxLine(content: fansi.Str): String =
+      val left = Style.dim(Style.Symbols.verticalLine).render
+      val right = Style.dim(Style.Symbols.verticalLine).render
+      val padLeft = 1
+      val padRight = 1
+      val maxVisible = (innerWidth - padLeft - padRight).max(0)
+      val raw = content.render
+      val sb = new StringBuilder(raw.length)
+      var i = 0
+      var visible = 0
+      var inEsc = false
+      while i < raw.length && visible < maxVisible do
+        val c = raw.charAt(i)
+        if inEsc then
+          sb.append(c)
+          if c == 'm' || c == 'h' || c == 'l' then inEsc = false
+          i += 1
+        else if c == '\u001b' then
+          inEsc = true
+          sb.append(c)
+          i += 1
+        else
+          sb.append(c)
+          visible += 1
+          i += 1
+      val spaces = (innerWidth - padLeft - padRight - visible).max(0)
+      left + (" " * padLeft) + sb.toString + (" " * spaces) + (" " * padRight) + right
 
     for
       _ <- terminal.writeLine(Style.dim(top).render)
-      _ <- terminal.writeLine(boxLine(headerLine).render)
+      _ <- terminal.writeLine(boxLine(headerLine))
       _ <- terminal.writeLine(Style.dim(divider).render)
-      _ <- terminal.writeLine(boxLine(metricsLine).render)
+      _ <- terminal.writeLine(boxLine(metricsLine))
       _ <- terminal.writeLine(Style.dim(divider).render)
-      _ <- terminal.writeLine(boxLine(workflowsHeader).render)
-      _ <- runLines.traverse_(line => terminal.writeLine(boxLine(line).render))
+      _ <- terminal.writeLine(boxLine(workflowsHeader))
+      _ <- runLines.traverse_(line => terminal.writeLine(boxLine(line)))
       _ <- terminal.writeLine(Style.dim(divider).render)
-      _ <- terminal.writeLine(boxLine(activeJobsHeader).render)
-      _ <- jobLines.traverse_(line => terminal.writeLine(boxLine(line).render))
+      _ <- terminal.writeLine(boxLine(activeJobsHeader))
+      _ <- jobLines.traverse_(line => terminal.writeLine(boxLine(line)))
       _ <- terminal.writeLine(Style.dim(divider).render)
-      _ <- terminal.writeLine(boxLine(footerLine).render)
+      _ <- terminal.writeLine(boxLine(footerLine))
       _ <- terminal.writeLine(Style.dim(bottom).render)
     yield ()
 
@@ -226,6 +256,39 @@ class Dashboard[F[_]: Async](
       else
         Style.subtitle("Suggestions:")
 
+    val overhead = 4 // header, hr, status, hr
+    val footerLines = 1
+    val infoLines = if state.assistantInfo.isDefined then 1 else 0
+    val budget = (height - overhead - footerLines - infoLines).max(0)
+
+    def contentLines(sug: com.github.actions.domain.AssistantSuggestion): List[String] =
+      if state.assistantActionsOnly then
+        sug.actions.map {
+          case com.github.actions.domain.AssistantAction.Command(a) => s"- ${a.description}: ${a.cmd}"
+          case com.github.actions.domain.AssistantAction.Link(a)    => s"- ${a.description}: ${a.url}"
+          case com.github.actions.domain.AssistantAction.Patch(a)   => s"- ${a.description}"
+        }
+      else
+        val lines = sug.rationale.split("\n").toList
+        if state.assistantVerbose then lines else lines.take(4) ::: (if lines.length > 4 then List("…") else Nil)
+
+    val renderSuggestions: F[Unit] =
+      // Render within budget
+      state.assistantSuggestions.zipWithIndex.foldLeft(Async[F].pure((0, ()))) { (accF, pair) =>
+        accF.flatMap { case (used, _) =>
+          val (sug, idx) = pair
+          val titleStr = (if idx == state.assistantSelectedIndex then Style.highlight(sug.title) else Style.title(sug.title)).render
+          val lines = contentLines(sug)
+          val needed = 1 + lines.length
+          if used + needed > budget then Async[F].pure((used, ()))
+          else
+            for
+              _ <- terminal.writeLine(titleStr)
+              _ <- lines.traverse_(l => terminal.writeLine(Style.dim(l).render))
+            yield (used + needed, ())
+        }
+      }.void
+
     for
       _ <- terminal.writeLine(header.render)
       _ <- terminal.writeLine(Style.horizontalLine(bounds.width).render)
@@ -233,13 +296,9 @@ class Dashboard[F[_]: Async](
       _ <- state.assistantInfo match
         case Some(info) => terminal.writeLine(Style.dim(info).render)
         case None => Async[F].unit
-      _ <- state.assistantSuggestions.zipWithIndex.traverse_ { case (sug, idx) =>
-        val title = if idx == state.assistantSelectedIndex then Style.highlight(sug.title) else Style.title(sug.title)
-        val rationale = Style.dim(sug.rationale)
-        terminal.writeLine((title ++ fansi.Str(" ") ++ rationale).render)
-      }
+      _ <- renderSuggestions
       _ <- terminal.writeLine(Style.horizontalLine(bounds.width).render)
-      _ <- terminal.writeLine(Style.dim("r:Analyze a:Close y:Copy o:Open q:Quit").render)
+      _ <- terminal.writeLine(Style.dim("r:Analyze a:Close y:Copy o:Open v:Verbose s:Actions-only q:Quit").render)
     yield ()
 
   /** Analyze assistant suggestions based on current selection */
@@ -464,6 +523,10 @@ class Dashboard[F[_]: Async](
           stateRef.get.flatMap { s =>
             if s.viewMode == ViewMode.Assistant then analyzeAssistant else render
           } >> Async[F].pure(true)
+      case NavigationAction.ToggleAssistantVerbose =>
+        stateRef.update(_.toggleAssistantVerbose) >> render >> Async[F].pure(true)
+      case NavigationAction.ToggleAssistantActionsOnly =>
+        stateRef.update(_.toggleAssistantActionsOnly) >> render >> Async[F].pure(true)
       case NavigationAction.Copy =>
         copyAssistantAction >> Async[F].pure(true)
       case NavigationAction.Quit =>

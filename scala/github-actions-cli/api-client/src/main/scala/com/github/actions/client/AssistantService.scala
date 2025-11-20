@@ -27,7 +27,7 @@ class AssistantService[F[_]: Async](
         case None =>
           for
             logsOpt <- job.traverse(j => gh.getJobLogs(owner, repo, j.id).attempt.map(_.toOption)).map(_.flatten)
-            logLinesCount = sys.env.get("AI_ASSISTANT_LOG_LINES").flatMap(_.toIntOption).getOrElse(200)
+            logLinesCount = sys.env.get("AI_ASSISTANT_LOG_LINES").flatMap(_.toIntOption).map(n => n.min(200).max(60)).getOrElse(120)
             lines = logsOpt.map(_.split("\n").toList).getOrElse(Nil)
             redacted = RedactionService.redactLines(lines).takeRight(logLinesCount)
             failingSteps = job.map(_.steps.filter(_.conclusion.contains(WorkflowConclusion.Failure)).map(_.name)).getOrElse(Nil)

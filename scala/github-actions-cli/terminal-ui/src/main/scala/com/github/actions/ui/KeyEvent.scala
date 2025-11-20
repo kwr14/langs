@@ -189,6 +189,8 @@ enum NavigationAction:
   case ToggleAutoRefresh
   case ToggleAssistant
   case Copy
+  case ToggleAssistantVerbose
+  case ToggleAssistantActionsOnly
   case Unknown
 
 object NavigationAction:
@@ -214,4 +216,6 @@ object NavigationAction:
       case KeyEvent.Char('p')                      => ToggleAutoRefresh
       case KeyEvent.Char('a')                      => ToggleAssistant
       case KeyEvent.Char('y')                      => Copy
+      case KeyEvent.Char('v')                      => ToggleAssistantVerbose
+      case KeyEvent.Char('s')                      => ToggleAssistantActionsOnly
       case _                                       => Unknown

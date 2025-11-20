@@ -35,6 +35,8 @@ case class DashboardState(
   assistantSuggestions: List[com.github.actions.domain.AssistantSuggestion] = List.empty,
   assistantSelectedIndex: Int = 0,
   assistantInfo: Option[String] = None,
+  assistantVerbose: Boolean = false,
+  assistantActionsOnly: Boolean = false,
   autoRefreshEnabled: Boolean = true,
   
   // Repository info
@@ -157,6 +159,12 @@ case class DashboardState(
       copy(viewMode = ViewMode.RunList)
     else
       copy(viewMode = ViewMode.Assistant)
+
+  def toggleAssistantVerbose: DashboardState =
+    copy(assistantVerbose = !assistantVerbose)
+
+  def toggleAssistantActionsOnly: DashboardState =
+    copy(assistantActionsOnly = !assistantActionsOnly)
   
   /** Update runs */
   def updateRuns(newRuns: List[WorkflowRun]): DashboardState =
