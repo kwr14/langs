@@ -21,7 +21,7 @@ object WorkflowConclusion:
     case "timed_out"        => Right(TimedOut)
     case "action_required"  => Right(ActionRequired)
     case "neutral"          => Right(Neutral)
-    case other              => Left(s"Unknown workflow conclusion: $other")
+    case _                   => Right(Neutral)
   }
 
   given Encoder[WorkflowConclusion] = Encoder[String].contramap {
