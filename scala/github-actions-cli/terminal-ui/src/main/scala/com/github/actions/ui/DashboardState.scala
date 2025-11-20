@@ -34,6 +34,7 @@ case class DashboardState(
   assistantEnabled: Boolean = false,
   assistantSuggestions: List[com.github.actions.domain.AssistantSuggestion] = List.empty,
   assistantSelectedIndex: Int = 0,
+  assistantInfo: Option[String] = None,
   autoRefreshEnabled: Boolean = true,
   
   // Repository info

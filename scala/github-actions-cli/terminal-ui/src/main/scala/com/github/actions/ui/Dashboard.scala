@@ -230,6 +230,9 @@ class Dashboard[F[_]: Async](
       _ <- terminal.writeLine(header.render)
       _ <- terminal.writeLine(Style.horizontalLine(bounds.width).render)
       _ <- terminal.writeLine(status.render)
+      _ <- state.assistantInfo match
+        case Some(info) => terminal.writeLine(Style.dim(info).render)
+        case None => Async[F].unit
       _ <- state.assistantSuggestions.zipWithIndex.traverse_ { case (sug, idx) =>
         val title = if idx == state.assistantSelectedIndex then Style.highlight(sug.title) else Style.title(sug.title)
         val rationale = Style.dim(sug.rationale)
@@ -250,7 +253,13 @@ class Dashboard[F[_]: Async](
             else client.listWorkflowRunJobs(state.owner, state.repo, run.id).map(j => run.copy(jobs = j))
           ensureJobs.flatMap { rWithJobs =>
             val preferredJob = rWithJobs.jobs.find(_.conclusion.exists(_.toString.equalsIgnoreCase("Failure"))).orElse(rWithJobs.jobs.headOption)
-            assistantService.analyze(state.owner, state.repo, rWithJobs, preferredJob)
+            assistantService.analyze(state.owner, state.repo, rWithJobs, preferredJob).flatMap { suggs =>
+              val info = {
+                val jobName = preferredJob.map(_.name).getOrElse("(none)")
+                s"analysis: jobs=${rWithJobs.jobs.length}, picked='${jobName}', suggestions=${suggs.length}"
+              }
+              stateRef.update(_.copy(assistantInfo = Some(info))).as(suggs)
+            }
           }
         case None => Async[F].pure(List.empty)
       _ <- stateRef.update(_.copy(assistantSuggestions = suggestions))
