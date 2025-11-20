@@ -42,7 +42,7 @@ case class DashboardState(
 ):
   /** Get the currently selected run */
   def selectedRun: Option[WorkflowRun] =
-    runs.lift(selectedRunIndex)
+    filteredRuns.lift(selectedRunIndex)
   
   /** Get the currently selected job */
   def selectedJob: Option[Job] =
