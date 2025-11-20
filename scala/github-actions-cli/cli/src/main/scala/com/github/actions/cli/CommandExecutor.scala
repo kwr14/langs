@@ -18,20 +18,20 @@ class CommandExecutor[F[_]: Async: Console](config: CliConfig):
   /** Execute a command */
   def execute(cmd: Command): F[Unit] =
     cmd match
-      case Command.Dashboard(owner, repo, autoRefresh, interval) =>
-        runDashboard(owner, repo, autoRefresh, interval)
+      case Command.Dashboard(owner, repo, autoRefresh, interval, reposOpt) =>
+        runDashboard(owner, repo, autoRefresh, interval, reposOpt)
 
-      case Command.List(owner, repo, status, branch, limit) =>
-        listWorkflowRuns(owner, repo, status, branch, limit)
+      case Command.List(owner, repo, status, branch, limit, reposOpt) =>
+        listWorkflowRuns(owner, repo, status, branch, limit, reposOpt)
 
-      case Command.Show(owner, repo, runId) =>
-        showWorkflowRun(owner, repo, runId)
+      case Command.Show(owner, repo, runId, reposOpt) =>
+        showWorkflowRun(owner, repo, runId, reposOpt)
 
-      case Command.Rerun(owner, repo, runId, failedOnly) =>
-        rerunWorkflow(owner, repo, runId, failedOnly)
+      case Command.Rerun(owner, repo, runId, failedOnly, reposOpt) =>
+        rerunWorkflow(owner, repo, runId, failedOnly, reposOpt)
 
-      case Command.Cancel(owner, repo, runId) =>
-        cancelWorkflow(owner, repo, runId)
+      case Command.Cancel(owner, repo, runId, reposOpt) =>
+        cancelWorkflow(owner, repo, runId, reposOpt)
 
       case Command.Init =>
         CliConfig.createSampleConfig[F]
@@ -44,7 +44,8 @@ class CommandExecutor[F[_]: Async: Console](config: CliConfig):
       owner: String,
       repo: String,
       autoRefresh: Boolean,
-      interval: Int
+      interval: Int,
+      reposOpt: Option[scala.List[com.github.actions.domain.Repository]]
   ): F[Unit] =
     EmberClientBuilder.default[F].build.use { client =>
       val terminal = Terminal.console[F]
@@ -57,7 +58,8 @@ class CommandExecutor[F[_]: Async: Console](config: CliConfig):
           terminal,
           keyReader,
           owner,
-          repo
+          repo,
+          reposOpt
         )
         refreshInterval = if autoRefresh then Some(interval.seconds) else None
         _ <- dashboard.run(refreshInterval)
@@ -70,7 +72,8 @@ class CommandExecutor[F[_]: Async: Console](config: CliConfig):
       repo: String,
       status: Option[WorkflowStatus],
       branch: Option[String],
-      limit: Int
+      limit: Int,
+      reposOpt: Option[scala.List[com.github.actions.domain.Repository]]
   ): F[Unit] =
     EmberClientBuilder.default[F].build.use { client =>
       val filter = RunFilter(
@@ -81,9 +84,23 @@ class CommandExecutor[F[_]: Async: Console](config: CliConfig):
 
       for
         gitHubClient <- createGitHubClient(client)
-        runs <- gitHubClient.listWorkflowRuns(owner, repo, Some(filter))
-        limitedRuns = runs.take(limit)
-        _ <- printWorkflowRuns(limitedRuns)
+        _ <- reposOpt match
+          case Some(repos) if repos.nonEmpty =>
+            val fetches = repos.traverse { r =>
+              gitHubClient
+                .listWorkflowRuns(r.owner, r.name, Some(filter))
+                .map(_.map(run => (r, run)))
+            }
+            fetches.map(_.flatten)
+              .map(_.sortBy(_._2.updatedAt)(Ordering[java.time.Instant].reverse))
+              .map(_.take(limit))
+              .flatMap(printWorkflowRunsMulti)
+          case _ =>
+            gitHubClient.listWorkflowRuns(owner, repo, Some(filter)).flatMap {
+              runs =>
+                val limitedRuns = runs.take(limit)
+                printWorkflowRuns(limitedRuns)
+            }
       yield ()
     }
 
@@ -91,14 +108,27 @@ class CommandExecutor[F[_]: Async: Console](config: CliConfig):
   private def showWorkflowRun(
       owner: String,
       repo: String,
-      runId: Long
+      runId: Long,
+      reposOpt: Option[scala.List[com.github.actions.domain.Repository]]
   ): F[Unit] =
     EmberClientBuilder.default[F].build.use { client =>
       for
         gitHubClient <- createGitHubClient(client)
-        run <- gitHubClient.getWorkflowRun(owner, repo, runId)
-        jobs <- gitHubClient.listWorkflowRunJobs(owner, repo, runId)
-        _ <- printWorkflowRunDetail(run, jobs)
+        _ <- reposOpt match
+          case Some(repos) if repos.nonEmpty =>
+            val fetches = repos.traverse { r =>
+              for
+                run <- gitHubClient.getWorkflowRun(r.owner, r.name, runId)
+                jobs <- gitHubClient.listWorkflowRunJobs(r.owner, r.name, runId)
+              yield (r, run, jobs)
+            }
+            fetches.flatMap(printWorkflowRunDetailMulti)
+          case _ =>
+            for
+              run <- gitHubClient.getWorkflowRun(owner, repo, runId)
+              jobs <- gitHubClient.listWorkflowRunJobs(owner, repo, runId)
+              _ <- printWorkflowRunDetail(run, jobs)
+            yield ()
       yield ()
     }
 
@@ -107,15 +137,23 @@ class CommandExecutor[F[_]: Async: Console](config: CliConfig):
       owner: String,
       repo: String,
       runId: Long,
-      failedOnly: Boolean
+      failedOnly: Boolean,
+      reposOpt: Option[scala.List[com.github.actions.domain.Repository]]
   ): F[Unit] =
     EmberClientBuilder.default[F].build.use { client =>
       for
         gitHubClient <- createGitHubClient(client)
-        _ <-
-          if failedOnly then gitHubClient.rerunFailedJobs(owner, repo, runId)
-          else gitHubClient.rerunWorkflow(owner, repo, runId)
-        _ <- Async[F].delay(println(s"Workflow run $runId rerun requested"))
+        _ <- reposOpt match
+          case Some(repos) if repos.nonEmpty =>
+            repos.traverse_ { r =>
+              val act = if failedOnly then gitHubClient.rerunFailedJobs(r.owner, r.name, runId)
+              else gitHubClient.rerunWorkflow(r.owner, r.name, runId)
+              act *> Async[F].delay(println(s"${r.fullName}: rerun requested for $runId"))
+            }
+          case _ =>
+            val act = if failedOnly then gitHubClient.rerunFailedJobs(owner, repo, runId)
+            else gitHubClient.rerunWorkflow(owner, repo, runId)
+            act *> Async[F].delay(println(s"Workflow run $runId rerun requested"))
       yield ()
     }
 
@@ -124,12 +162,20 @@ class CommandExecutor[F[_]: Async: Console](config: CliConfig):
       owner: String,
       repo: String,
       runId: Long
+      , reposOpt: Option[scala.List[com.github.actions.domain.Repository]]
   ): F[Unit] =
     EmberClientBuilder.default[F].build.use { client =>
       for
         gitHubClient <- createGitHubClient(client)
-        _ <- gitHubClient.cancelWorkflowRun(owner, repo, runId)
-        _ <- Async[F].delay(println(s"Workflow run $runId cancelled"))
+        _ <- reposOpt match
+          case Some(repos) if repos.nonEmpty =>
+            repos.traverse_ { r =>
+              gitHubClient.cancelWorkflowRun(r.owner, r.name, runId) *>
+                Async[F].delay(println(s"${r.fullName}: run $runId cancelled"))
+            }
+          case _ =>
+            gitHubClient.cancelWorkflowRun(owner, repo, runId) *>
+              Async[F].delay(println(s"Workflow run $runId cancelled"))
       yield ()
     }
 
@@ -165,6 +211,17 @@ class CommandExecutor[F[_]: Async: Console](config: CliConfig):
       }
     }
 
+  private def printWorkflowRunsMulti(
+      data: List[(com.github.actions.domain.Repository, com.github.actions.domain.WorkflowRun)]
+  ): F[Unit] =
+    Async[F].delay {
+      println(s"Found ${data.length} workflow runs across ${data.map(_._1.fullName).distinct.length} repos:")
+      data.foreach { case (repo, run) =>
+        val status = run.conclusion.map(_.toString).getOrElse(run.status.toString)
+        println(f"  ${repo.fullName}%-30s ${run.id}%10d  ${run.name}%-30s  $status")
+      }
+    }
+
   /** Print workflow run detail (placeholder - will be enhanced) */
   private def printWorkflowRunDetail(
       run: com.github.actions.domain.WorkflowRun,
@@ -183,6 +240,25 @@ class CommandExecutor[F[_]: Async: Console](config: CliConfig):
         val status =
           job.conclusion.map(_.toString).getOrElse(job.status.toString)
         println(f"    - ${job.name}%-40s  $status")
+      }
+    }
+
+  private def printWorkflowRunDetailMulti(
+      data: scala.List[(com.github.actions.domain.Repository, com.github.actions.domain.WorkflowRun, scala.List[com.github.actions.domain.Job])]
+  ): F[Unit] =
+    Async[F].delay {
+      data.foreach { case (repo, run, jobs) =>
+        println(s"Repository: ${repo.fullName}")
+        println(s"Workflow Run: ${run.name}")
+        println(s"  ID: ${run.id}")
+        println(s"  Status: ${run.status}")
+        println(s"  Conclusion: ${run.conclusion.map(_.toString).getOrElse("N/A")}")
+        println(s"  Branch: ${run.headBranch}")
+        println(s"  Jobs: ${jobs.length}")
+        jobs.foreach { job =>
+          val status = job.conclusion.map(_.toString).getOrElse(job.status.toString)
+          println(f"    - ${job.name}%-40s  $status")
+        }
       }
     }
 

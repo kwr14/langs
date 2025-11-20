@@ -38,10 +38,11 @@ case class DashboardState(
   assistantVerbose: Boolean = false,
   assistantActionsOnly: Boolean = false,
   autoRefreshEnabled: Boolean = true,
-  
+
   // Repository info
   owner: String = "",
-  repo: String = ""
+  repo: String = "",
+  repos: Option[scala.List[com.github.actions.domain.Repository]] = None
 ):
   /** Get the currently selected run */
   def selectedRun: Option[WorkflowRun] =

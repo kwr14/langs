@@ -131,7 +131,7 @@ class Http4sGitHubClient[F[_]: Async: Console](
     val req = Request[F](Method.GET, uri).withHeaders(authHeader, acceptHeader, userAgentHeader)
     client.run(req).use { resp =>
       if resp.status == Status.Ok then
-        resp.as[String].flatMap { body =>
+        resp.bodyText.compile.string.flatMap { body =>
           import io.circe.parser.*
           parse(body) match
             case Left(err) => Async[F].raiseError(GitHubClient.GitHubError(s"Failed to parse runs JSON: ${err.getMessage}"))
@@ -173,9 +173,24 @@ class Http4sGitHubClient[F[_]: Async: Console](
               if runs.nonEmpty then Async[F].pure(runs) else ghFallbackRuns(owner, repo, filter)
         }
       else
-        resp.bodyText.compile.string.flatMap { body =>
-          ghFallbackRuns(owner, repo, filter)
-        }
+        resp.status match
+          case Status.Forbidden | Status.Conflict | Status.TooManyRequests =>
+            resp.as[GitHubErrorResponse].flatMap { err =>
+              Async[F].raiseError(
+                GitHubClient.GitHubError(
+                  err.message,
+                  err.documentation_url
+                )
+              )
+            }
+          case _ =>
+            resp.bodyText.compile.string.flatMap { body =>
+              Async[F].raiseError(
+                GitHubClient.GitHubError(
+                  s"GitHub API error: ${resp.status.code} - $body"
+                )
+              )
+            }
     }
 
   private def ghFallbackRuns(
@@ -249,7 +264,75 @@ class Http4sGitHubClient[F[_]: Async: Console](
       runId: Long
   ): F[List[Job]] =
     val uri = buildUri(s"repos/$owner/$repo/actions/runs/$runId/jobs")
-    request[JobsResponse](Method.GET, uri).map(_.jobs)
+    val req = Request[F](Method.GET, uri).withHeaders(authHeader, acceptHeader, userAgentHeader)
+    client.run(req).use { resp =>
+      if resp.status == Status.Ok then
+        resp.bodyText.compile.string.flatMap { body =>
+          import io.circe.parser.*
+          import java.time.Instant
+          import scala.util.Try
+          parse(body) match
+            case Left(err) =>
+              Async[F].raiseError(GitHubClient.GitHubError(s"Failed to parse jobs JSON: ${err.getMessage}"))
+            case Right(json) =>
+              val jobsJson = json.hcursor.downField("jobs").focus.getOrElse(io.circe.Json.arr())
+              val arr = jobsJson.asArray.getOrElse(Vector.empty)
+              val jobs = arr.toList.map { j =>
+                val c = j.hcursor
+                val id = c.get[Long]("id").getOrElse(0L)
+                val name = c.get[String]("name").getOrElse("(unknown)")
+                val statusStr = c.get[String]("status").getOrElse("completed")
+                val status = WorkflowStatus.fromString(statusStr).getOrElse(WorkflowStatus.Completed)
+                val conclStr = c.get[Option[String]]("conclusion").getOrElse(None)
+                val conclusion = conclStr.flatMap(WorkflowConclusion.fromString)
+                val startedAtStr = c.get[String]("started_at").toOption
+                val completedAtStr = c.get[String]("completed_at").toOption
+                val startedAt = startedAtStr.flatMap(s => Try(Instant.parse(s)).toOption)
+                val completedAt = completedAtStr.flatMap(s => Try(Instant.parse(s)).toOption)
+                val stepsArr = c.downField("steps").focus.flatMap(_.asArray).getOrElse(Vector.empty)
+                val steps = stepsArr.toList.map { sj =>
+                  val sc = sj.hcursor
+                  val sname = sc.get[String]("name").getOrElse("(step)")
+                  val sstatusStr = sc.get[String]("status").getOrElse("completed")
+                  val sstatus = WorkflowStatus.fromString(sstatusStr).getOrElse(WorkflowStatus.Completed)
+                  val sconclStr = sc.get[Option[String]]("conclusion").getOrElse(None)
+                  val sconclusion = sconclStr.flatMap(WorkflowConclusion.fromString)
+                  val snumber = sc.get[Int]("number").getOrElse(0)
+                  val sstartedAtStr = sc.get[String]("started_at").toOption
+                  val scompletedAtStr = sc.get[String]("completed_at").toOption
+                  val sstartedAt = sstartedAtStr.flatMap(s => Try(Instant.parse(s)).toOption)
+                  val scompletedAt = scompletedAtStr.flatMap(s => Try(Instant.parse(s)).toOption)
+                  Step(
+                    name = sname,
+                    status = sstatus,
+                    conclusion = sconclusion,
+                    number = snumber,
+                    startedAt = sstartedAt,
+                    completedAt = scompletedAt
+                  )
+                }
+                Job(
+                  id = id,
+                  name = name,
+                  status = status,
+                  conclusion = conclusion,
+                  startedAt = startedAt,
+                  completedAt = completedAt,
+                  steps = steps,
+                  logs = None
+                )
+              }
+              Async[F].pure(jobs)
+        }
+      else
+        resp.bodyText.compile.string.flatMap { body =>
+          Async[F].raiseError(
+            GitHubClient.GitHubError(
+              s"GitHub API error: ${resp.status.code} - $body"
+            )
+          )
+        }
+    }
 
   override def rerunWorkflow(
       owner: String,

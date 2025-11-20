@@ -3,6 +3,7 @@
 # This script installs the GitHub Actions CLI tool
 
 set -e
+ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 
 # Colors for output
 RED='\033[0;31m'
@@ -13,7 +14,7 @@ NC='\033[0m' # No Color
 # Configuration
 INSTALL_DIR="${INSTALL_DIR:-$HOME/.local/bin}"
 REPO="kwr14/langs"
-BINARY_NAME="gh-actions"
+BINARY_NAME="github-actions-cli"
 
 # Detect OS and architecture
 OS="$(uname -s)"
@@ -47,16 +48,8 @@ if [ -z "$LATEST_RELEASE" ]; then
         exit 1
     fi
     
-    # Clone and build
-    TEMP_DIR=$(mktemp -d)
-    cd "$TEMP_DIR"
-    git clone "https://github.com/$REPO.git"
-    cd langs/scala/github-actions-cli
-    
-    echo "Building fat JAR..."
+    cd "$ROOT_DIR"
     sbt "cli/assembly"
-    
-    # Copy the JAR
     cp cli/target/scala-3.5.0/github-actions-cli.jar "$INSTALL_DIR/"
     
     # Create wrapper script
@@ -68,14 +61,12 @@ EOF
     
     chmod +x "$INSTALL_DIR/$BINARY_NAME"
     
-    # Cleanup
-    cd ~
-    rm -rf "$TEMP_DIR"
+    :
 else
     echo "Latest release: $LATEST_RELEASE"
     
     # Try to download native binary first
-    DOWNLOAD_URL="https://github.com/$REPO/releases/download/$LATEST_RELEASE/gh-actions-$OS-$ARCH"
+    DOWNLOAD_URL="https://github.com/$REPO/releases/download/$LATEST_RELEASE/github-actions-cli-$OS-$ARCH"
     
     if curl -fsSL "$DOWNLOAD_URL" -o "$INSTALL_DIR/$BINARY_NAME" 2>/dev/null; then
         echo "Downloaded native binary"

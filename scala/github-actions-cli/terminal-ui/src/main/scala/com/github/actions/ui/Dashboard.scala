@@ -59,7 +59,11 @@ class Dashboard[F[_]: Async](
     val runningDot = if state.filteredRuns.exists(_.isRunning) then Style.Colors.inProgress("●") else Style.Colors.dim("○")
     val headerLine =
       Style.highlight(" GitHub Actions Dashboard ") ++
-      Str("- ") ++ Style.title(s"${state.owner}/${state.repo}") ++
+      Str("- ") ++ {
+        state.repos match
+          case Some(rs) if rs.nonEmpty => Style.title(s"Multi (${rs.length})")
+          case _ => Style.title(s"${state.owner}/${state.repo}")
+      } ++
       Style.dim(s"    Last: ${lastRef}  ") ++ runningDot
 
     val runs = state.filteredRuns
@@ -641,13 +645,22 @@ class Dashboard[F[_]: Async](
       state <- stateRef.get
       _ <- stateRef.update(_.setLoading(true))
       _ <- render
-      result <- client
-        .listWorkflowRuns(
-          state.owner,
-          state.repo,
-          state.filter
-        )
-        .attempt
+      result <- state.repos match
+        case Some(rs) if rs.nonEmpty =>
+          rs.traverse { r =>
+            client.listWorkflowRuns(r.owner, r.name, state.filter).map(_.map(run => (r, run)))
+          }.map(_.flatten)
+            .map(_.sortBy(_._2.updatedAt)(Ordering[java.time.Instant].reverse))
+            .map(_.map(_._2))
+            .attempt
+        case _ =>
+          client
+            .listWorkflowRuns(
+              state.owner,
+              state.repo,
+              state.filter
+            )
+            .attempt
       _ <- result match
         case Right(runs) =>
           stateRef.update(_.updateRuns(runs))
@@ -722,13 +735,14 @@ object Dashboard:
       terminal: Terminal[F],
       keyReader: KeyReader[F],
       owner: String,
-      repo: String
+      repo: String,
+      repos: Option[scala.List[com.github.actions.domain.Repository]]
   ): F[Dashboard[F]] =
     for
       stateRef <- Ref.of[F, DashboardState](
         {
           val enabled = sys.env.get("AI_ASSISTANT_ENABLED").exists(_.toLowerCase == "true") || sys.env.get("OLLAMA_HOST").isDefined
-          DashboardState(owner = owner, repo = repo, assistantEnabled = enabled)
+          DashboardState(owner = owner, repo = repo, repos = repos, assistantEnabled = enabled)
         }
       )
       endpoint = sys.env.getOrElse("OLLAMA_HOST", "http://localhost:11434")
