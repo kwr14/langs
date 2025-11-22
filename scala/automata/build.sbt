@@ -36,7 +36,8 @@ lazy val core = (project in file("core"))
       //   "com.banno" % "kafka4s_2.13" % "6.0.1",
       "com.github.plokhotnyuk.jsoniter-scala" %% "jsoniter-scala-core" % "2.30.13",
       "com.github.plokhotnyuk.jsoniter-scala" %% "jsoniter-scala-macros" % "2.30.13" % "provided",
-      "org.xerial" % "sqlite-jdbc" % "3.46.0.0"
+      "org.xerial" % "sqlite-jdbc" % "3.46.0.0",
+      "com.github.tototoshi" %% "scala-csv" % "1.3.10"
     )
   )
 
