@@ -305,7 +305,7 @@
 
 1. **Start the server**:
 ```bash
-cd scala/cassandra-best-practise
+cd scala/automata
 sbt "project core" run
 ```
 

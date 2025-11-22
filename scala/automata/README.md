@@ -1,4 +1,4 @@
-# Cassandra Best Practice - Workflow Management API
+# Automata - Workflow Management API
 
 A durable workflow execution engine built with Scala, Cats Effect, http4s, and Cassandra.
 

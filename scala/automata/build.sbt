@@ -33,7 +33,7 @@ lazy val core = (project in file("core"))
       "com.datastax.oss" % "java-driver-query-builder" % "4.17.0",
       "ch.qos.logback" % "logback-classic" % "1.5.6",
       munit % Test,
-    //   "com.banno" % "kafka4s_2.13" % "6.0.1",
+      //   "com.banno" % "kafka4s_2.13" % "6.0.1",
       "com.github.plokhotnyuk.jsoniter-scala" %% "jsoniter-scala-core" % "2.30.13",
       "com.github.plokhotnyuk.jsoniter-scala" %% "jsoniter-scala-macros" % "2.30.13" % "provided",
       "org.xerial" % "sqlite-jdbc" % "3.46.0.0"
@@ -43,7 +43,7 @@ lazy val core = (project in file("core"))
 lazy val root = (project in file("."))
   .aggregate(core) // Include the core project in the root project
   .settings(
-    name := "Cassandra Best Practise",
+    name := "automata",
     libraryDependencies ++= Seq(
       "org.typelevel" %% "cats-core" % "2.12.0",
       "org.typelevel" %% "cats-effect" % "3.5.4",
