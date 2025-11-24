@@ -57,6 +57,7 @@ The server includes an integrated Swagger UI for interactive API exploration:
 - **OpenAPI Spec**: http://localhost:8080/api-docs/openapi.yaml
 
 With Swagger UI, you can:
+
 - 📖 Browse all API endpoints and schemas
 - 🧪 Test API calls directly from your browser
 - 📝 See request/response examples
@@ -65,13 +66,16 @@ With Swagger UI, you can:
 ### Quick Start
 
 1. **Start the server:**
+
    ```bash
    sbt "project core" run
    ```
+
    Server will start on `http://localhost:8080`
 
    You'll see:
-   ```
+
+   ```text
    🚀 Server started on http://localhost:8080
    📖 API Documentation: http://localhost:8080/api-docs
    📝 OpenAPI Spec: http://localhost:8080/api-docs/openapi.yaml
@@ -82,6 +86,7 @@ With Swagger UI, you can:
    Navigate to http://localhost:8080/api-docs in your browser to explore the API interactively.
 
 3. **Create a workflow** (using example):
+
    ```bash
    curl -X POST http://localhost:8080/workflows \
      -H "Content-Type: application/json" \
@@ -89,11 +94,13 @@ With Swagger UI, you can:
    ```
 
 4. **Get workflow status:**
+
    ```bash
    curl http://localhost:8080/workflows/{workflow-id}
    ```
 
 5. **Get workflow result:**
+
    ```bash
    curl http://localhost:8080/workflows/{workflow-id}/result
    ```
@@ -119,7 +126,7 @@ See [USE_CASES.md](./USE_CASES.md) for detailed explanations and more examples.
 | GET    | `/workflows/{id}`             | Get workflow status and tasks        |
 | GET    | `/workflows/{id}/result`      | Get workflow execution result        |
 
-#### API Documentation
+#### API Documentation Endpoints
 
 | Method | Endpoint                      | Description                          |
 |--------|-------------------------------|--------------------------------------|
@@ -143,12 +150,20 @@ Two helper scripts are provided for testing:
 ## Data Models
 
 ### Workflow Definition
+
+Defines the structure of a workflow before execution:
+
+- **name**: Human-readable workflow name
+
+- **taskDefinitions**: List of tasks to execute
 Defines the structure of a workflow before execution:
 - **name**: Human-readable workflow name
 - **taskDefinitions**: List of tasks to execute
 
 ### Task Definition
+
 Defines a task template:
+
 - **name**: Task name
 - **taskType**: Type identifier for task executor
 - **parameterTypes**: Map of parameter types
@@ -156,7 +171,9 @@ Defines a task template:
 - **dependencies**: Names of tasks that must complete first
 
 ### Workflow
+
 Runtime representation of an executing workflow:
+
 - **id**: Unique UUID
 - **name**: Workflow name
 - **status**: Pending | Running | Completed | Failed
@@ -165,7 +182,9 @@ Runtime representation of an executing workflow:
 - **createdAt/updatedAt**: Timestamps
 
 ### Task
+
 Runtime representation of a task:
+
 - **id**: Unique UUID
 - **name**: Task name
 - **status**: Pending | Running | Completed | Failed
@@ -176,13 +195,17 @@ Runtime representation of a task:
 - **dependencies**: UUIDs of dependent tasks
 
 ### Workflow Result
+
 Final execution result:
+
 - **workflowId**: Workflow UUID
 - **taskResults**: Map of task IDs to results
 - **error**: Optional error message
 
 ### Task Result
+
 Individual task execution result:
+
 - **taskId**: Task UUID
 - **output**: Task output (any JSON value)
 - **error**: Optional error message
@@ -249,4 +272,3 @@ Contributions are welcome! Please see the documentation guides:
 ## License
 
 Apache 2.0
-
